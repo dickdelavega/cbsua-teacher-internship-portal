@@ -55,6 +55,7 @@ export async function GET() {
     const students = [
       {
         studentId: '2021-10492',
+        username: 'jdelacruz',
         name: 'Juan Dela Cruz',
         program: 'BSED - Major in English',
         spId: sp.id,
@@ -62,6 +63,7 @@ export async function GET() {
       },
       {
         studentId: '2021-10511',
+        username: 'ksalazar',
         name: 'Kristine Mae Salazar',
         program: 'BSED - Major in Mathematics',
         spId: sp.id,
@@ -69,6 +71,7 @@ export async function GET() {
       },
       {
         studentId: '2021-10678',
+        username: 'abautista',
         name: 'Alvin Mark Bautista',
         program: 'BSED - Major in General Science',
         spId: sp.id,
@@ -76,6 +79,7 @@ export async function GET() {
       },
       {
         studentId: '2021-10988',
+        username: 'pvelasco',
         name: 'Patricia Nicole Velasco',
         program: 'BSED - Major in English',
         spId: sp.id,
@@ -87,7 +91,7 @@ export async function GET() {
     for (const st of students) {
       const s = await prisma.student.upsert({
         where: { studentId: st.studentId },
-        update: { ctId: st.ctId, spId: st.spId },
+        update: { ctId: st.ctId, spId: st.spId, username: st.username },
         create: {
           ...st,
           password: 'password123',
