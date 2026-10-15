@@ -327,3 +327,80 @@ export async function assignStudentToCooperatingTeacher(
     };
   }
 }
+
+export async function getStudentProfile(studentIdOrDbId?: string) {
+  try {
+    let student = null;
+    if (studentIdOrDbId) {
+      student = await prisma.student.findFirst({
+        where: {
+          OR: [{ studentId: studentIdOrDbId }, { id: studentIdOrDbId }],
+        },
+        include: { ct: true, sp: true },
+      });
+    }
+
+    if (!student) {
+      // Default to the first seeded enrolled student (e.g. 2021-10492) or first available
+      student = await prisma.student.findFirst({
+        where: { studentId: '2021-10492' },
+        include: { ct: true, sp: true },
+      });
+      if (!student) {
+        student = await prisma.student.findFirst({
+          include: { ct: true, sp: true },
+        });
+      }
+    }
+
+    if (student) {
+      return {
+        id: student.id,
+        studentId: student.studentId,
+        name: student.name,
+        program: student.program,
+        spId: student.spId,
+        ctId: student.ctId,
+        sp: student.sp
+          ? {
+              id: student.sp.id,
+              name: student.sp.name,
+              email: student.sp.email,
+              department: 'College of Education - Department of Teacher Internship',
+            }
+          : null,
+        ct: student.ct
+          ? {
+              id: student.ct.id,
+              name: student.ct.name,
+              school: student.ct.school,
+              gradeLevel: student.ct.gradeLevel,
+            }
+          : null,
+      };
+    }
+  } catch (err) {
+    // DB error fallback
+  }
+
+  const fb = getFallbackStore();
+  let st = null;
+  if (studentIdOrDbId) {
+    st = fb.students.find(
+      (s: any) => s.studentId === studentIdOrDbId || s.id === studentIdOrDbId
+    );
+  }
+  if (!st) {
+    st = fb.students[0];
+  }
+  if (!st) return null;
+
+  const ct = fb.cooperatingTeachers.find((c: any) => c.id === st.ctId) || null;
+  const sp = fb.professors[0] || null;
+
+  return {
+    ...st,
+    ct,
+    sp,
+  };
+}

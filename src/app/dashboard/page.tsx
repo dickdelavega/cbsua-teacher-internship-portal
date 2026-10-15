@@ -7,18 +7,24 @@ import { FileText, CheckCircle, School, User, BookOpen, AlertCircle } from "luci
 
 export default function Dashboard() {
   const [student, setStudent] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Fetch assigned cooperating teacher and student info
-    fetch("/api/sp/students")
+    const sessionStudentId =
+      typeof window !== "undefined" ? sessionStorage.getItem("cbsua_student_id") : null;
+    const url = sessionStudentId
+      ? `/api/student/profile?studentId=${encodeURIComponent(sessionStudentId)}`
+      : "/api/student/profile";
+
+    fetch(url)
       .then((r) => r.json())
-      .then((data) => {
-        if (data.success && data.data && data.data.length > 0) {
-          // Default to the first student or active demo student
-          setStudent(data.data[0]);
+      .then((res) => {
+        if (res.success && res.data) {
+          setStudent(res.data);
         }
       })
-      .catch(() => {});
+      .catch((err) => console.error("Error fetching student profile", err))
+      .finally(() => setIsLoading(false));
   }, []);
 
   return (
@@ -140,13 +146,25 @@ export default function Dashboard() {
                 Knowledge, Learning Environment, Diversity of Learners, Curriculum, Assessment, Community
                 Linkages, and Personal Growth.
               </div>
+              {student?.ct ? (
+                <div className="mx-5 mb-4 p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs">
+                  <span className="font-bold text-emerald-900 block">Assigned Cooperating Teacher:</span>
+                  <div className="text-slate-800 font-semibold mt-0.5">{student.ct.name}</div>
+                  <div className="text-slate-500 text-[11px]">{student.ct.school} • {student.ct.gradeLevel}</div>
+                </div>
+              ) : (
+                <div className="mx-5 mb-4 p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800">
+                  <span className="font-bold block">Pending CT Assignment</span>
+                  Waiting for Supervising Professor to assign your mentor.
+                </div>
+              )}
             </div>
             <div className="p-5 pt-0">
               <Link
                 href="/evaluations/ct"
                 className="block w-full text-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl transition shadow-xs text-sm"
               >
-                Start CT Evaluation →
+                {student?.ct ? `Evaluate ${student.ct.name} →` : "Open CT Appraisal Form →"}
               </Link>
             </div>
           </div>

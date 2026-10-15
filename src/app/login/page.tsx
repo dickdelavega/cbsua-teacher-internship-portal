@@ -7,16 +7,15 @@ import Image from "next/image";
 import { Lock } from "lucide-react";
 
 export default function Login() {
-  const [studentId, setStudentId] = useState("");
-  const [password, setPassword] = useState("");
+  const [studentId, setStudentId] = useState("2021-10492");
+  const [password, setPassword] = useState("password123");
   const router = useRouter();
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate login for now
-    if (studentId) {
-      router.push("/dashboard");
-    }
+    const idToUse = studentId.trim() || "2021-10492";
+    sessionStorage.setItem("cbsua_student_id", idToUse);
+    router.push("/dashboard");
   };
 
   return (
@@ -87,6 +86,45 @@ export default function Login() {
                 <a href="#" className="font-medium text-cbsua-green hover:text-green-800">
                   Forgot your password?
                 </a>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs">
+              <span className="font-bold text-slate-700 block mb-1.5">Select Demo Intern Account:</span>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => { setStudentId("2021-10492"); setPassword("password123"); }}
+                  className={`px-2 py-1 rounded text-[11px] font-medium border transition ${
+                    studentId === "2021-10492"
+                      ? "bg-cbsua-green text-white border-cbsua-green"
+                      : "bg-white hover:bg-emerald-50 text-emerald-800 border-emerald-300"
+                  }`}
+                >
+                  Juan Dela Cruz (CT Assigned)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setStudentId("2021-10511"); setPassword("password123"); }}
+                  className={`px-2 py-1 rounded text-[11px] font-medium border transition ${
+                    studentId === "2021-10511"
+                      ? "bg-cbsua-green text-white border-cbsua-green"
+                      : "bg-white hover:bg-emerald-50 text-emerald-800 border-emerald-300"
+                  }`}
+                >
+                  Kristine Salazar (CT Assigned)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setStudentId("2021-0001"); setPassword("password123"); }}
+                  className={`px-2 py-1 rounded text-[11px] font-medium border transition ${
+                    studentId === "2021-0001"
+                      ? "bg-amber-600 text-white border-amber-600"
+                      : "bg-white hover:bg-amber-50 text-amber-800 border-amber-300"
+                  }`}
+                >
+                  John Doe (CT Unassigned)
+                </button>
               </div>
             </div>
 
