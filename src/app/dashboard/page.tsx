@@ -148,9 +148,43 @@ export default function Dashboard() {
               </div>
               {student?.ct ? (
                 <div className="mx-5 mb-4 p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs">
-                  <span className="font-bold text-emerald-900 block">Assigned Cooperating Teacher:</span>
-                  <div className="text-slate-800 font-semibold mt-0.5">{student.ct.name}</div>
-                  <div className="text-slate-500 text-[11px]">{student.ct.school} • {student.ct.gradeLevel}</div>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className="font-bold text-emerald-900 block">Assigned Cooperating Teacher:</span>
+                      <div className="text-slate-800 font-semibold mt-0.5">{student.ct.name}</div>
+                      <div className="text-slate-500 text-[11px]">{student.ct.school} • {student.ct.gradeLevel}</div>
+                    </div>
+                    {student?.evaluationCT ? (
+                      <span className="bg-emerald-600 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-xs">
+                        ✓ Evaluated
+                      </span>
+                    ) : (
+                      <span className="bg-amber-100 text-amber-800 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-amber-200">
+                        Pending Rating
+                      </span>
+                    )}
+                  </div>
+
+                  {student?.evaluationCT && (
+                    <div className="mt-3 pt-2.5 border-t border-emerald-200/80">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-emerald-900 flex items-center gap-1">
+                          ⭐ Total Rating Given:
+                        </span>
+                        <span className="font-extrabold text-cbsua-green text-sm">
+                          {student.evaluationCT.rating.average} / 5.00
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-emerald-700 font-medium">
+                        Rating Standard: {student.evaluationCT.rating.descriptor}
+                      </div>
+                      {student.evaluationCT.comments && (
+                        <div className="mt-1 text-[11px] text-slate-600 italic bg-white/70 p-2 rounded border border-emerald-100">
+                          &ldquo;{student.evaluationCT.comments}&rdquo;
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="mx-5 mb-4 p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800">
@@ -162,9 +196,17 @@ export default function Dashboard() {
             <div className="p-5 pt-0">
               <Link
                 href="/evaluations/ct"
-                className="block w-full text-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl transition shadow-xs text-sm"
+                className={`block w-full text-center font-bold py-2.5 rounded-xl transition shadow-xs text-sm ${
+                  student?.evaluationCT
+                    ? "bg-amber-600 hover:bg-amber-700 text-white"
+                    : "bg-blue-600 hover:bg-blue-700 text-white"
+                }`}
               >
-                {student?.ct ? `Evaluate ${student.ct.name} →` : "Open CT Appraisal Form →"}
+                {!student?.ct
+                  ? "Open CT Appraisal Form →"
+                  : student?.evaluationCT
+                  ? `Review / Edit CT Rating (${student.evaluationCT.rating.average} ★) →`
+                  : `Evaluate ${student.ct.name} →`}
               </Link>
             </div>
           </div>

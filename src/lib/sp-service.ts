@@ -10,6 +10,20 @@ export interface CooperatingTeacherData {
   createdAt?: string;
 }
 
+export interface EvaluationCTData {
+  id: string;
+  teacherName: string;
+  schoolName: string;
+  responses: Record<string, string>;
+  comments: string | null;
+  rating: {
+    average: number;
+    totalQuestions: number;
+    descriptor: string;
+  };
+  createdAt: string;
+}
+
 export interface StudentData {
   id: string;
   studentId: string;
@@ -18,6 +32,7 @@ export interface StudentData {
   spId?: string | null;
   ctId?: string | null;
   ct?: CooperatingTeacherData | null;
+  evaluationCT?: EvaluationCTData | null;
   createdAt?: string;
 }
 
@@ -180,32 +195,76 @@ export async function addCooperatingTeacher(data: {
   }
 }
 
+export function calculateCTRating(responses: any): {
+  average: number;
+  totalQuestions: number;
+  descriptor: string;
+} {
+  if (!responses || typeof responses !== 'object') {
+    return { average: 0, totalQuestions: 0, descriptor: 'Not Rated' };
+  }
+  const values = Object.values(responses)
+    .map((v) => Number(v))
+    .filter((n) => !isNaN(n) && n > 0);
+
+  if (values.length === 0) {
+    return { average: 0, totalQuestions: 0, descriptor: 'Not Rated' };
+  }
+  const sum = values.reduce((a, b) => a + b, 0);
+  const avg = Number((sum / values.length).toFixed(2));
+  let descriptor = 'Highly Observed';
+  if (avg < 1.5) descriptor = 'Not Observed';
+  else if (avg < 2.5) descriptor = 'Less Observed';
+  else if (avg < 3.5) descriptor = 'Moderately Observed';
+  else if (avg < 4.5) descriptor = 'Observed';
+
+  return { average: avg, totalQuestions: values.length, descriptor };
+}
+
 export async function getEnrolledStudents(): Promise<StudentData[]> {
   try {
     const students = await prisma.student.findMany({
       include: {
         ct: true,
+        evaluationsCT: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
     if (students.length > 0) {
-      return students.map((s) => ({
-        id: s.id,
-        studentId: s.studentId,
-        name: s.name,
-        program: s.program,
-        spId: s.spId,
-        ctId: s.ctId,
-        ct: s.ct
-          ? {
-              id: s.ct.id,
-              name: s.ct.name,
-              school: s.ct.school,
-              gradeLevel: s.ct.gradeLevel,
-            }
-          : null,
-        createdAt: s.createdAt.toISOString(),
-      }));
+      return students.map((s) => {
+        const latestEval = s.evaluationsCT && s.evaluationsCT.length > 0 ? s.evaluationsCT[0] : null;
+        return {
+          id: s.id,
+          studentId: s.studentId,
+          name: s.name,
+          program: s.program,
+          spId: s.spId,
+          ctId: s.ctId,
+          ct: s.ct
+            ? {
+                id: s.ct.id,
+                name: s.ct.name,
+                school: s.ct.school,
+                gradeLevel: s.ct.gradeLevel,
+              }
+            : null,
+          evaluationCT: latestEval
+            ? {
+                id: latestEval.id,
+                teacherName: latestEval.teacherName,
+                schoolName: latestEval.schoolName,
+                responses: latestEval.responses as any,
+                comments: latestEval.comments,
+                rating: calculateCTRating(latestEval.responses),
+                createdAt: latestEval.createdAt.toISOString(),
+              }
+            : null,
+          createdAt: s.createdAt.toISOString(),
+        };
+      });
     }
   } catch (err) {
     // DB error fallback
@@ -331,12 +390,21 @@ export async function assignStudentToCooperatingTeacher(
 export async function getStudentProfile(studentIdOrDbId?: string) {
   try {
     let student = null;
+    const includeQuery = {
+      ct: true,
+      sp: true,
+      evaluationsCT: {
+        orderBy: { createdAt: 'desc' as const },
+        take: 1,
+      },
+    };
+
     if (studentIdOrDbId) {
       student = await prisma.student.findFirst({
         where: {
           OR: [{ studentId: studentIdOrDbId }, { id: studentIdOrDbId }],
         },
-        include: { ct: true, sp: true },
+        include: includeQuery,
       });
     }
 
@@ -344,16 +412,17 @@ export async function getStudentProfile(studentIdOrDbId?: string) {
       // Default to the first seeded enrolled student (e.g. 2021-10492) or first available
       student = await prisma.student.findFirst({
         where: { studentId: '2021-10492' },
-        include: { ct: true, sp: true },
+        include: includeQuery,
       });
       if (!student) {
         student = await prisma.student.findFirst({
-          include: { ct: true, sp: true },
+          include: includeQuery,
         });
       }
     }
 
     if (student) {
+      const latestEval = student.evaluationsCT && student.evaluationsCT.length > 0 ? student.evaluationsCT[0] : null;
       return {
         id: student.id,
         studentId: student.studentId,
@@ -375,6 +444,17 @@ export async function getStudentProfile(studentIdOrDbId?: string) {
               name: student.ct.name,
               school: student.ct.school,
               gradeLevel: student.ct.gradeLevel,
+            }
+          : null,
+        evaluationCT: latestEval
+          ? {
+              id: latestEval.id,
+              teacherName: latestEval.teacherName,
+              schoolName: latestEval.schoolName,
+              responses: latestEval.responses as any,
+              comments: latestEval.comments,
+              rating: calculateCTRating(latestEval.responses),
+              createdAt: latestEval.createdAt.toISOString(),
             }
           : null,
       };

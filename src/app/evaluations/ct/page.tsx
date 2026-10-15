@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -14,6 +14,10 @@ import {
   ArrowLeft,
   BookOpen,
   ShieldCheck,
+  Star,
+  Edit3,
+  Clock,
+  Sparkles,
 } from "lucide-react";
 
 const questionsData = {
@@ -94,10 +98,14 @@ const questionsData = {
   ]
 };
 
+const totalAvailableQuestions = Object.values(questionsData).reduce((sum, arr) => sum + arr.length, 0);
+
 export default function CTEvaluation() {
   const router = useRouter();
   const [student, setStudent] = useState<any>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [lastSubmittedAt, setLastSubmittedAt] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     teacherName: "",
@@ -129,6 +137,17 @@ export default function CTEvaluation() {
               schoolName: s.ct.school,
             }));
           }
+
+          // If the student already rated this Cooperating Teacher, pre-populate for editing
+          if (s.evaluationCT) {
+            setIsEditing(true);
+            setResponses(s.evaluationCT.responses || {});
+            setFormData((prev) => ({
+              ...prev,
+              comments: s.evaluationCT.comments || "",
+            }));
+            setLastSubmittedAt(s.evaluationCT.createdAt || null);
+          }
         }
       })
       .catch((err) => {
@@ -138,6 +157,32 @@ export default function CTEvaluation() {
         setIsLoadingProfile(false);
       });
   }, []);
+
+  // Compute real-time rating and summary
+  const currentRating = useMemo(() => {
+    const values = Object.values(responses)
+      .map((v) => Number(v))
+      .filter((n) => !isNaN(n) && n > 0);
+
+    if (values.length === 0) return null;
+
+    const sum = values.reduce((a, b) => a + b, 0);
+    const avg = Number((sum / values.length).toFixed(2));
+
+    let descriptor = "Highly Observed";
+    if (avg < 1.5) descriptor = "Not Observed";
+    else if (avg < 2.5) descriptor = "Less Observed";
+    else if (avg < 3.5) descriptor = "Moderately Observed";
+    else if (avg < 4.5) descriptor = "Observed";
+
+    return {
+      average: avg,
+      answeredCount: values.length,
+      totalQuestions: totalAvailableQuestions,
+      descriptor,
+      isComplete: values.length === totalAvailableQuestions,
+    };
+  }, [responses]);
 
   const handleRadioChange = (category: string, index: number, value: string) => {
     setResponses((prev) => ({ ...prev, [category + "_" + index]: value }));
@@ -164,8 +209,13 @@ export default function CTEvaluation() {
           comments: formData.comments,
         }),
       });
-      if (res.ok) {
-        alert("Evaluation for Cooperating Teacher submitted successfully!");
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setIsEditing(true);
+        alert(
+          data.message ||
+            `Cooperating Teacher appraisal saved with an overall rating of ${data.rating?.average || currentRating?.average} / 5.00!`
+        );
         router.push("/dashboard");
       } else {
         alert("Failed to submit evaluation. Make sure database is configured.");
@@ -189,12 +239,21 @@ export default function CTEvaluation() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 py-10 px-4 sm:px-6 font-sans">
       <div className="max-w-4xl mx-auto bg-white p-6 sm:p-10 rounded-2xl shadow-sm border border-slate-200">
-        <Link
-          href="/dashboard"
-          className="text-sm text-cbsua-green hover:underline mb-6 inline-flex items-center gap-1.5 font-bold"
-        >
-          <ArrowLeft className="w-4 h-4" /> Back to Dashboard
-        </Link>
+        <div className="flex items-center justify-between mb-6 pb-2">
+          <Link
+            href="/dashboard"
+            className="text-sm text-cbsua-green hover:underline inline-flex items-center gap-1.5 font-bold"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+          </Link>
+
+          {isEditing && (
+            <div className="flex items-center gap-1.5 text-xs bg-amber-50 text-amber-800 border border-amber-200 px-3 py-1 rounded-full font-medium">
+              <Edit3 className="w-3.5 h-3.5 text-amber-600" />
+              <span>Editing Mode — You can update this rating anytime</span>
+            </div>
+          )}
+        </div>
 
         {/* Institution Header */}
         <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-200">
@@ -225,7 +284,7 @@ export default function CTEvaluation() {
             Loading student intern credentials and assigned Cooperating Teacher details...
           </div>
         ) : student?.ct ? (
-          <div className="mb-8 bg-emerald-50/60 rounded-xl border border-emerald-200 p-5">
+          <div className="mb-6 bg-emerald-50/60 rounded-xl border border-emerald-200 p-5">
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 mb-4 pb-3 border-b border-emerald-200/80">
               <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs uppercase tracking-wider">
                 <ShieldCheck className="w-4 h-4 text-emerald-700" />
@@ -313,6 +372,55 @@ export default function CTEvaluation() {
           </div>
         )}
 
+        {/* Total Rating & Evaluation Summary Banner (Required for student to view & edit rating) */}
+        {student?.ct && currentRating && (
+          <div className="mb-8 bg-gradient-to-r from-emerald-900 via-cbsua-green to-emerald-800 text-white p-5 rounded-2xl shadow-md border border-emerald-700">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-yellow-300">
+                  <Star className="w-4 h-4 fill-yellow-300 text-yellow-300" />
+                  Total Cooperating Teacher Rating
+                </div>
+                <div className="flex items-baseline gap-3 mt-1.5">
+                  <span className="text-4xl font-extrabold text-white">
+                    {currentRating.average}
+                  </span>
+                  <span className="text-lg text-emerald-200 font-semibold">/ 5.00</span>
+                  <span className="bg-yellow-400/20 text-yellow-200 border border-yellow-400/40 text-xs font-bold px-3 py-1 rounded-full">
+                    {currentRating.descriptor}
+                  </span>
+                </div>
+                <div className="text-xs text-emerald-200 mt-1 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
+                  <span>
+                    Computed based on {currentRating.answeredCount} of {currentRating.totalQuestions}{" "}
+                    appraisal indicators rated
+                  </span>
+                </div>
+              </div>
+
+              {isEditing && (
+                <div className="bg-white/10 backdrop-blur-xs border border-white/20 p-3 rounded-xl text-xs text-emerald-100 max-w-xs">
+                  <div className="font-bold text-white flex items-center gap-1.5 mb-1">
+                    <Edit3 className="w-3.5 h-3.5 text-yellow-300" />
+                    Rating Can Be Edited
+                  </div>
+                  <div>
+                    Modify any score below to adjust the total rating. Click &quot;Save & Update
+                    Rating&quot; to apply your changes.
+                  </div>
+                  {lastSubmittedAt && (
+                    <div className="text-[10px] text-emerald-300 mt-1.5 flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      Last submitted: {new Date(lastSubmittedAt).toLocaleDateString()}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Evaluation Scale Guide */}
         <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-8 text-xs text-slate-600">
           <div className="font-bold text-slate-800 mb-1">Rating Scale Guide:</div>
@@ -347,35 +455,49 @@ export default function CTEvaluation() {
                 {category}
               </h3>
               <div className="space-y-4">
-                {questions.map((q, qIdx) => (
-                  <div
-                    key={qIdx}
-                    className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 hover:border-slate-300 transition"
-                  >
-                    <p className="mb-3 font-medium text-slate-800 text-sm">
-                      {qIdx + 1}. {q}
-                    </p>
-                    <div className="flex flex-wrap gap-3 sm:gap-4">
-                      {scaleOptions.map((opt) => (
-                        <label
-                          key={opt.value}
-                          className="flex items-center gap-2 cursor-pointer text-xs sm:text-sm text-slate-700 bg-white px-3 py-1.5 rounded-lg border border-slate-200 hover:border-cbsua-green transition"
-                        >
-                          <input
-                            type="radio"
-                            name={`ct_${cIdx}_${qIdx}`}
-                            value={opt.value}
-                            required
-                            disabled={!student?.ct}
-                            onChange={() => handleRadioChange(category, qIdx, opt.value)}
-                            className="text-cbsua-green focus:ring-cbsua-green"
-                          />
-                          {opt.label}
-                        </label>
-                      ))}
+                {questions.map((q, qIdx) => {
+                  const key = `${category}_${qIdx}`;
+                  const selectedVal = responses[key];
+
+                  return (
+                    <div
+                      key={qIdx}
+                      className={`p-4 rounded-xl border transition ${
+                        selectedVal
+                          ? "bg-emerald-50/30 border-emerald-200"
+                          : "bg-slate-50/70 border-slate-200/80 hover:border-slate-300"
+                      }`}
+                    >
+                      <p className="mb-3 font-medium text-slate-800 text-sm">
+                        {qIdx + 1}. {q}
+                      </p>
+                      <div className="flex flex-wrap gap-3 sm:gap-4">
+                        {scaleOptions.map((opt) => (
+                          <label
+                            key={opt.value}
+                            className={`flex items-center gap-2 cursor-pointer text-xs sm:text-sm px-3 py-1.5 rounded-lg border transition ${
+                              selectedVal === opt.value
+                                ? "bg-cbsua-green text-white border-cbsua-green font-semibold shadow-xs"
+                                : "bg-white text-slate-700 border-slate-200 hover:border-cbsua-green"
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name={`ct_${cIdx}_${qIdx}`}
+                              value={opt.value}
+                              checked={selectedVal === opt.value}
+                              required
+                              disabled={!student?.ct}
+                              onChange={() => handleRadioChange(category, qIdx, opt.value)}
+                              className="text-cbsua-green focus:ring-cbsua-green"
+                            />
+                            {opt.label}
+                          </label>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -409,13 +531,24 @@ export default function CTEvaluation() {
             <button
               type="submit"
               disabled={isSubmitting || !student?.ct}
-              className="w-full sm:w-auto bg-cbsua-green hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 px-8 rounded-xl transition shadow-sm text-sm"
+              className={`w-full sm:w-auto font-bold py-3 px-8 rounded-xl transition shadow-sm text-sm flex items-center justify-center gap-2 ${
+                isEditing
+                  ? "bg-amber-600 hover:bg-amber-700 text-white"
+                  : "bg-cbsua-green hover:bg-green-800 text-white"
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
-              {isSubmitting
-                ? "Submitting to CBSUA System..."
-                : !student?.ct
-                ? "Assignment Required Before Submission"
-                : `Submit Evaluation for ${student.ct.name}`}
+              {isSubmitting ? (
+                "Saving to CBSUA System..."
+              ) : !student?.ct ? (
+                "Assignment Required Before Submission"
+              ) : isEditing ? (
+                <>
+                  <Edit3 className="w-4 h-4" />
+                  Save & Update Rating for {student.ct.name} ({currentRating?.average || "—"} / 5.00)
+                </>
+              ) : (
+                `Submit Evaluation for ${student.ct.name}`
+              )}
             </button>
           </div>
         </form>
