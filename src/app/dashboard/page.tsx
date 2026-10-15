@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { FileText, CheckCircle, School, User, BookOpen, AlertCircle } from "lucide-react";
+import { FileText, CheckCircle, School, User, BookOpen, AlertCircle, Star, Edit3, Award } from "lucide-react";
 
 export default function Dashboard() {
   const [student, setStudent] = useState<any>(null);
@@ -172,14 +172,14 @@ export default function Dashboard() {
                           ⭐ Total Rating Given:
                         </span>
                         <span className="font-extrabold text-cbsua-green text-sm">
-                          {student.evaluationCT.rating.average} / 5.00
+                          {Number(student.evaluationCT.rating.average).toFixed(2)} / 5.00
                         </span>
                       </div>
                       <div className="text-[10px] text-emerald-700 font-medium">
                         Rating Standard: {student.evaluationCT.rating.descriptor}
                       </div>
                       {student.evaluationCT.comments && (
-                        <div className="mt-1 text-[11px] text-slate-600 italic bg-white/70 p-2 rounded border border-emerald-100">
+                        <div className="mt-1 text-[11px] text-slate-600 italic bg-white/70 p-2 rounded border border-emerald-100 line-clamp-2">
                           &ldquo;{student.evaluationCT.comments}&rdquo;
                         </div>
                       )}
@@ -194,20 +194,31 @@ export default function Dashboard() {
               )}
             </div>
             <div className="p-5 pt-0">
-              <Link
-                href="/evaluations/ct"
-                className={`block w-full text-center font-bold py-2.5 rounded-xl transition shadow-xs text-sm ${
-                  student?.evaluationCT
-                    ? "bg-amber-600 hover:bg-amber-700 text-white"
-                    : "bg-blue-600 hover:bg-blue-700 text-white"
-                }`}
-              >
-                {!student?.ct
-                  ? "Open CT Appraisal Form →"
-                  : student?.evaluationCT
-                  ? `Review / Edit CT Rating (${student.evaluationCT.rating.average} ★) →`
-                  : `Evaluate ${student.ct.name} →`}
-              </Link>
+              {student?.evaluationCT ? (
+                <div className="flex gap-2">
+                  <Link
+                    href="/evaluations/ct"
+                    className="flex-1 text-center font-bold py-2.5 px-3 rounded-xl transition shadow-xs text-xs sm:text-sm bg-emerald-700 hover:bg-emerald-800 text-white flex items-center justify-center gap-1.5"
+                  >
+                    <Star className="w-4 h-4 fill-yellow-300 text-yellow-300" />
+                    View Total Rating ({Number(student.evaluationCT.rating.average).toFixed(2)})
+                  </Link>
+                  <Link
+                    href="/evaluations/ct?edit=1"
+                    className="text-center font-bold py-2.5 px-3 rounded-xl transition shadow-xs text-xs sm:text-sm bg-amber-600 hover:bg-amber-700 text-white flex items-center justify-center gap-1 shrink-0"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    Edit Rating
+                  </Link>
+                </div>
+              ) : (
+                <Link
+                  href="/evaluations/ct"
+                  className="block w-full text-center font-bold py-2.5 rounded-xl transition shadow-xs text-sm bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {!student?.ct ? "Open CT Appraisal Form →" : `Evaluate ${student.ct.name} →`}
+                </Link>
+              )}
             </div>
           </div>
 
