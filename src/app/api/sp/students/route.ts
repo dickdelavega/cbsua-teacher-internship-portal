@@ -13,7 +13,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { studentId, name, program, ctId } = body;
+    const { studentId, username, name, program, temporaryPassword, ctId } = body;
 
     if (!studentId || !name || !program) {
       return NextResponse.json(
@@ -24,8 +24,10 @@ export async function POST(req: Request) {
 
     const student = await enrollStudent({
       studentId: studentId.trim(),
+      username: username?.trim() || null,
       name: name.trim(),
       program: program.trim(),
+      temporaryPassword: temporaryPassword?.trim() || null,
       ctId: ctId || null,
     });
 

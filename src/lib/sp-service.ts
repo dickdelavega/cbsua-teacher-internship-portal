@@ -27,6 +27,7 @@ export interface EvaluationCTData {
 export interface StudentData {
   id: string;
   studentId: string;
+  username?: string | null;
   name: string;
   program: string;
   spId?: string | null;
@@ -84,8 +85,10 @@ const defaultData = {
     {
       id: 'stud-01',
       studentId: '2021-10492',
+      username: 'jdelacruz',
       name: 'Juan Dela Cruz',
       program: 'BSED - Major in English',
+      password: 'password123',
       spId: 'sp-cbsua-01',
       ctId: 'ct-01',
       createdAt: new Date().toISOString(),
@@ -93,8 +96,10 @@ const defaultData = {
     {
       id: 'stud-02',
       studentId: '2021-10511',
+      username: 'kmsalazar',
       name: 'Kristine Mae Salazar',
       program: 'BSED - Major in Mathematics',
+      password: 'password123',
       spId: 'sp-cbsua-01',
       ctId: 'ct-02',
       createdAt: new Date().toISOString(),
@@ -102,8 +107,10 @@ const defaultData = {
     {
       id: 'stud-03',
       studentId: '2021-10678',
+      username: 'ambautista',
       name: 'Alvin Mark Bautista',
       program: 'BSED - Major in General Science',
+      password: 'password123',
       spId: 'sp-cbsua-01',
       ctId: null,
       createdAt: new Date().toISOString(),
@@ -239,6 +246,7 @@ export async function getEnrolledStudents(): Promise<StudentData[]> {
         return {
           id: s.id,
           studentId: s.studentId,
+          username: s.username || s.studentId,
           name: s.name,
           program: s.program,
           spId: s.spId,
@@ -273,8 +281,10 @@ export async function getEnrolledStudents(): Promise<StudentData[]> {
   const fb = getFallbackStore();
   return fb.students.map((s: any) => {
     const ct = fb.cooperatingTeachers.find((c: any) => c.id === s.ctId) || null;
+    const { password: _p, ...safe } = s;
     return {
-      ...s,
+      ...safe,
+      username: safe.username || safe.studentId,
       ct,
     };
   });
@@ -282,18 +292,25 @@ export async function getEnrolledStudents(): Promise<StudentData[]> {
 
 export async function enrollStudent(data: {
   studentId: string;
+  username?: string | null;
   name: string;
   program: string;
+  temporaryPassword?: string | null;
   ctId?: string | null;
 }): Promise<StudentData> {
   const sp = await getSupervisingProfessor();
+  const cleanStudentId = data.studentId.trim();
+  const cleanUsername = (data.username && data.username.trim()) || cleanStudentId;
+  const cleanPassword = (data.temporaryPassword && data.temporaryPassword.trim()) || 'password123';
+
   try {
     const created = await prisma.student.create({
       data: {
-        studentId: data.studentId,
-        name: data.name,
-        program: data.program,
-        password: 'studentpassword123',
+        studentId: cleanStudentId,
+        username: cleanUsername,
+        name: data.name.trim(),
+        program: data.program.trim(),
+        password: cleanPassword,
         spId: sp.id,
         ctId: data.ctId || null,
       },
@@ -302,6 +319,7 @@ export async function enrollStudent(data: {
     return {
       id: created.id,
       studentId: created.studentId,
+      username: created.username || created.studentId,
       name: created.name,
       program: created.program,
       spId: created.spId,
@@ -316,19 +334,23 @@ export async function enrollStudent(data: {
         : null,
       createdAt: created.createdAt.toISOString(),
     };
-  } catch (err) {
+  } catch (err: any) {
     // Fallback store
     const fb = getFallbackStore();
-    const existingIdx = fb.students.findIndex((s: any) => s.studentId === data.studentId);
+    const existingIdx = fb.students.findIndex(
+      (s: any) => s.studentId === cleanStudentId || (s.username && s.username === cleanUsername)
+    );
     if (existingIdx >= 0) {
-      throw new Error(`Student with ID ${data.studentId} is already enrolled.`);
+      throw new Error(`Student with ID ${cleanStudentId} or username ${cleanUsername} is already enrolled.`);
     }
 
     const newStudent: any = {
       id: `stud-${Date.now()}`,
-      studentId: data.studentId,
-      name: data.name,
-      program: data.program,
+      studentId: cleanStudentId,
+      username: cleanUsername,
+      name: data.name.trim(),
+      program: data.program.trim(),
+      password: cleanPassword,
       spId: sp.id,
       ctId: data.ctId || null,
       createdAt: new Date().toISOString(),
@@ -336,11 +358,201 @@ export async function enrollStudent(data: {
     fb.students.unshift(newStudent);
 
     const ct = fb.cooperatingTeachers.find((c: any) => c.id === newStudent.ctId) || null;
+    const { password: _p, ...safe } = newStudent;
     return {
-      ...newStudent,
+      ...safe,
       ct,
     };
   }
+}
+
+export async function resetStudentPassword(
+  studentIdentifier: string,
+  newPassword: string
+): Promise<{ success: boolean; message: string }> {
+  const cleanPassword = newPassword.trim();
+  if (!cleanPassword || cleanPassword.length < 6) {
+    throw new Error('New password must be at least 6 characters long.');
+  }
+
+  try {
+    const student = await prisma.student.findFirst({
+      where: {
+        OR: [
+          { studentId: studentIdentifier },
+          { id: studentIdentifier },
+          { username: studentIdentifier },
+        ],
+      },
+    });
+
+    if (student) {
+      await prisma.student.update({
+        where: { id: student.id },
+        data: { password: cleanPassword },
+      });
+      return {
+        success: true,
+        message: `Password for student ${student.name} was successfully updated.`,
+      };
+    }
+  } catch (err) {
+    // Fallback
+  }
+
+  const fb = getFallbackStore();
+  const st = fb.students.find(
+    (s: any) =>
+      s.studentId === studentIdentifier ||
+      s.id === studentIdentifier ||
+      s.username === studentIdentifier
+  );
+  if (!st) {
+    throw new Error('Student account not found.');
+  }
+
+  st.password = cleanPassword;
+  return {
+    success: true,
+    message: `Password for student ${st.name} was successfully updated.`,
+  };
+}
+
+export async function changeStudentPassword(
+  studentIdentifier: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<{ success: boolean; message: string }> {
+  const cleanCurr = currentPassword.trim();
+  const cleanNew = newPassword.trim();
+
+  if (!cleanNew || cleanNew.length < 6) {
+    throw new Error('New password must be at least 6 characters long.');
+  }
+
+  try {
+    const student = await prisma.student.findFirst({
+      where: {
+        OR: [
+          { studentId: studentIdentifier },
+          { id: studentIdentifier },
+          { username: studentIdentifier },
+        ],
+      },
+    });
+
+    if (student) {
+      if (student.password !== cleanCurr) {
+        throw new Error('The current password you entered is incorrect.');
+      }
+
+      await prisma.student.update({
+        where: { id: student.id },
+        data: { password: cleanNew },
+      });
+
+      return {
+        success: true,
+        message: 'Your password has been changed successfully.',
+      };
+    }
+  } catch (err: any) {
+    if (err.message === 'The current password you entered is incorrect.') {
+      throw err;
+    }
+  }
+
+  const fb = getFallbackStore();
+  const st = fb.students.find(
+    (s: any) =>
+      s.studentId === studentIdentifier ||
+      s.id === studentIdentifier ||
+      s.username === studentIdentifier
+  );
+
+  if (!st) {
+    throw new Error('Student account not found.');
+  }
+
+  if (st.password && st.password !== cleanCurr) {
+    throw new Error('The current password you entered is incorrect.');
+  }
+
+  st.password = cleanNew;
+  return {
+    success: true,
+    message: 'Your password has been changed successfully.',
+  };
+}
+
+export async function verifyStudentLogin(
+  identifier: string,
+  passwordAttempt: string
+): Promise<StudentData> {
+  const cleanId = identifier.trim();
+  const cleanPass = passwordAttempt.trim();
+
+  try {
+    const student = await prisma.student.findFirst({
+      where: {
+        OR: [{ studentId: cleanId }, { username: cleanId }],
+      },
+      include: {
+        ct: true,
+        sp: true,
+      },
+    });
+
+    if (student) {
+      if (student.password !== cleanPass) {
+        throw new Error('Invalid username/student ID or password.');
+      }
+
+      return {
+        id: student.id,
+        studentId: student.studentId,
+        username: student.username || student.studentId,
+        name: student.name,
+        program: student.program,
+        spId: student.spId,
+        ctId: student.ctId,
+        ct: student.ct
+          ? {
+              id: student.ct.id,
+              name: student.ct.name,
+              school: student.ct.school,
+              gradeLevel: student.ct.gradeLevel,
+            }
+          : null,
+        createdAt: student.createdAt.toISOString(),
+      };
+    }
+  } catch (err: any) {
+    if (err.message === 'Invalid username/student ID or password.') {
+      throw err;
+    }
+  }
+
+  const fb = getFallbackStore();
+  const st = fb.students.find(
+    (s: any) => s.studentId === cleanId || s.username === cleanId
+  );
+
+  if (!st) {
+    throw new Error('Invalid username/student ID or password.');
+  }
+
+  if (st.password && st.password !== cleanPass) {
+    throw new Error('Invalid username/student ID or password.');
+  }
+
+  const ct = fb.cooperatingTeachers.find((c: any) => c.id === st.ctId) || null;
+  const { password: _p, ...safe } = st;
+  return {
+    ...safe,
+    username: safe.username || safe.studentId,
+    ct,
+  };
 }
 
 export async function assignStudentToCooperatingTeacher(
@@ -402,7 +614,11 @@ export async function getStudentProfile(studentIdOrDbId?: string) {
     if (studentIdOrDbId) {
       student = await prisma.student.findFirst({
         where: {
-          OR: [{ studentId: studentIdOrDbId }, { id: studentIdOrDbId }],
+          OR: [
+            { studentId: studentIdOrDbId },
+            { id: studentIdOrDbId },
+            { username: studentIdOrDbId },
+          ],
         },
         include: includeQuery,
       });
@@ -426,6 +642,7 @@ export async function getStudentProfile(studentIdOrDbId?: string) {
       return {
         id: student.id,
         studentId: student.studentId,
+        username: student.username || student.studentId,
         name: student.name,
         program: student.program,
         spId: student.spId,
@@ -467,7 +684,10 @@ export async function getStudentProfile(studentIdOrDbId?: string) {
   let st = null;
   if (studentIdOrDbId) {
     st = fb.students.find(
-      (s: any) => s.studentId === studentIdOrDbId || s.id === studentIdOrDbId
+      (s: any) =>
+        s.studentId === studentIdOrDbId ||
+        s.id === studentIdOrDbId ||
+        s.username === studentIdOrDbId
     );
   }
   if (!st) {
@@ -477,9 +697,11 @@ export async function getStudentProfile(studentIdOrDbId?: string) {
 
   const ct = fb.cooperatingTeachers.find((c: any) => c.id === st.ctId) || null;
   const sp = fb.professors[0] || null;
+  const { password: _p, ...safeSt } = st;
 
   return {
-    ...st,
+    ...safeSt,
+    username: safeSt.username || safeSt.studentId,
     ct,
     sp,
   };

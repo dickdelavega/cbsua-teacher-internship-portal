@@ -25,6 +25,8 @@ import {
   X,
   Award,
   Sparkles,
+  KeyRound,
+  Lock,
 } from "lucide-react";
 
 interface EvaluationCT {
@@ -51,6 +53,7 @@ interface CooperatingTeacher {
 interface Student {
   id: string;
   studentId: string;
+  username?: string | null;
   name: string;
   program: string;
   spId?: string | null;
@@ -77,14 +80,25 @@ export default function SupervisingProfessorDashboard() {
   // Enroll Student Form State
   const [newStudent, setNewStudent] = useState({
     studentId: "",
+    username: "",
     name: "",
     program: "BSED - Major in English",
+    temporaryPassword: "",
     ctId: "",
   });
+  const [showTempPass, setShowTempPass] = useState(false);
   const [isEnrolling, setIsEnrolling] = useState(false);
   const [enrollMsg, setEnrollMsg] = useState<{ type: "success" | "error"; text: string } | null>(
     null
   );
+
+  // SP Password Reset Modal State
+  const [passwordResetStudent, setPasswordResetStudent] = useState<Student | null>(null);
+  const [newPasswordVal, setNewPasswordVal] = useState("");
+  const [confirmPasswordVal, setConfirmPasswordVal] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [resetMsg, setResetMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Add Cooperating Teacher Form State
   const [newCT, setNewCT] = useState({
@@ -167,8 +181,10 @@ export default function SupervisingProfessorDashboard() {
         setEnrollMsg({ type: "success", text: `Student ${newStudent.name} successfully enrolled!` });
         setNewStudent({
           studentId: "",
+          username: "",
           name: "",
           program: "BSED - Major in English",
+          temporaryPassword: "",
           ctId: "",
         });
         loadData();
@@ -179,6 +195,55 @@ export default function SupervisingProfessorDashboard() {
       setEnrollMsg({ type: "error", text: "Network error during student enrollment." });
     } finally {
       setIsEnrolling(false);
+    }
+  };
+
+  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!passwordResetStudent) return;
+
+    if (newPasswordVal.length < 6) {
+      setResetMsg({ type: "error", text: "New password must be at least 6 characters." });
+      return;
+    }
+
+    if (newPasswordVal !== confirmPasswordVal) {
+      setResetMsg({ type: "error", text: "Passwords do not match." });
+      return;
+    }
+
+    setIsResettingPassword(true);
+    setResetMsg(null);
+
+    try {
+      const res = await fetch("/api/sp/students/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentIdentifier: passwordResetStudent.studentId,
+          newPassword: newPasswordVal,
+        }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setResetMsg({
+          type: "success",
+          text: `Password successfully updated for ${passwordResetStudent.name}.`,
+        });
+        setTimeout(() => {
+          setPasswordResetStudent(null);
+          setResetMsg(null);
+          setNewPasswordVal("");
+          setConfirmPasswordVal("");
+        }, 1500);
+      } else {
+        setResetMsg({ type: "error", text: data.error || "Failed to update password." });
+      }
+    } catch (err) {
+      setResetMsg({ type: "error", text: "Network error while updating password." });
+    } finally {
+      setIsResettingPassword(false);
     }
   };
 
@@ -523,12 +588,13 @@ export default function SupervisingProfessorDashboard() {
                       <th className="py-3.5 px-4">Cooperating Teacher Details</th>
                       <th className="py-3.5 px-4">CT Rating & Intern Feedback</th>
                       <th className="py-3.5 px-4">Assignment Action</th>
+                      <th className="py-3.5 px-4">Account Security</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {filteredStudents.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="py-12 text-center text-slate-400">
+                        <td colSpan={6} className="py-12 text-center text-slate-400">
                           <Users className="w-8 h-8 mx-auto mb-2 opacity-40" />
                           No student interns found matching your filter criteria.
                         </td>
@@ -539,6 +605,11 @@ export default function SupervisingProfessorDashboard() {
                           <td className="py-4 px-4">
                             <div className="font-bold text-slate-900">{st.name}</div>
                             <div className="text-xs font-mono text-slate-500">{st.studentId}</div>
+                            {st.username && (
+                              <div className="text-[11px] font-mono text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-flex items-center gap-1 mt-1 font-semibold">
+                                <span>@{st.username}</span>
+                              </div>
+                            )}
                           </td>
 
                           <td className="py-4 px-4">
@@ -633,6 +704,24 @@ export default function SupervisingProfessorDashboard() {
                                 </button>
                               )}
                             </div>
+                          </td>
+
+                          <td className="py-4 px-4 whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPasswordResetStudent(st);
+                                setNewPasswordVal("");
+                                setConfirmPasswordVal("");
+                                setResetMsg(null);
+                                setShowNewPassword(false);
+                              }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-400 hover:text-slate-900 transition shadow-2xs"
+                              title="Set or reset student password"
+                            >
+                              <KeyRound className="w-3.5 h-3.5 text-amber-600" />
+                              Change Password
+                            </button>
                           </td>
                         </tr>
                       ))
@@ -882,32 +971,79 @@ export default function SupervisingProfessorDashboard() {
             )}
 
             <form onSubmit={handleEnrollSubmit} className="space-y-5">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Student ID Number *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. 2021-10492"
-                  value={newStudent.studentId}
-                  onChange={(e) => setNewStudent({ ...newStudent, studentId: e.target.value })}
-                  className="w-full px-4 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-cbsua-green text-slate-900"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Student ID Number *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 2021-10492"
+                    value={newStudent.studentId}
+                    onChange={(e) => setNewStudent({ ...newStudent, studentId: e.target.value })}
+                    className="w-full px-4 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-cbsua-green text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Portal Username *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. jdelacruz"
+                    value={newStudent.username}
+                    onChange={(e) => setNewStudent({ ...newStudent, username: e.target.value })}
+                    className="w-full px-4 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-cbsua-green text-slate-900"
+                  />
+                  <span className="text-[11px] text-slate-400 mt-1 block">
+                    Student uses this or their Student ID to log in.
+                  </span>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Student Full Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Juan Dela Cruz"
-                  value={newStudent.name}
-                  onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
-                  className="w-full px-4 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-cbsua-green text-slate-900"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Student Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Juan Dela Cruz"
+                    value={newStudent.name}
+                    onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
+                    className="w-full px-4 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-cbsua-green text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Temporary Password *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showTempPass ? "text" : "password"}
+                      required
+                      placeholder="Min. 6 characters"
+                      value={newStudent.temporaryPassword}
+                      onChange={(e) => setNewStudent({ ...newStudent, temporaryPassword: e.target.value })}
+                      className="w-full px-4 py-2.5 pr-14 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-cbsua-green text-slate-900"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowTempPass(!showTempPass)}
+                      className="absolute right-3 top-2.5 text-xs text-slate-500 hover:text-slate-700 font-semibold"
+                    >
+                      {showTempPass ? "Hide" : "Show"}
+                    </button>
+                  </div>
+                  <span className="text-[11px] text-slate-400 mt-1 block">
+                    Assigned for first login. Student can change it afterwards.
+                  </span>
+                </div>
               </div>
 
               <div>
@@ -1091,6 +1227,128 @@ export default function SupervisingProfessorDashboard() {
                 >
                   Close Record
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SP Change Student Password Modal */}
+        {passwordResetStudent && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+            <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              <div className="bg-gradient-to-r from-cbsua-green to-emerald-900 text-white p-5 relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPasswordResetStudent(null);
+                    setResetMsg(null);
+                  }}
+                  className="absolute right-4 top-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition"
+                  aria-label="Close modal"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 text-yellow-300 text-xs font-semibold mb-1 border border-white/10">
+                  <KeyRound className="w-3.5 h-3.5" />
+                  Account Security
+                </div>
+                <h3 className="text-lg font-bold">Change Student Password</h3>
+                <p className="text-green-100 text-xs mt-0.5">
+                  Update login password for <span className="font-semibold text-white">{passwordResetStudent.name}</span>
+                </p>
+              </div>
+
+              <div className="p-6">
+                <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200 mb-5 text-xs text-slate-600 space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Student ID:</span>
+                    <span className="font-mono font-bold text-slate-800">{passwordResetStudent.studentId}</span>
+                  </div>
+                  {passwordResetStudent.username && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Username:</span>
+                      <span className="font-mono font-bold text-emerald-800">@{passwordResetStudent.username}</span>
+                    </div>
+                  )}
+                  <div className="pt-2 border-t border-slate-200/80 text-[11px] text-slate-500 italic flex items-start gap-1.5">
+                    <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                    <span>
+                      For student privacy and security, current passwords are encrypted and cannot be viewed. Entering a new password will immediately overwrite their old password.
+                    </span>
+                  </div>
+                </div>
+
+                {resetMsg && (
+                  <div
+                    className={`mb-4 p-3.5 rounded-xl text-xs font-semibold ${
+                      resetMsg.type === "success"
+                        ? "bg-green-50 text-green-900 border border-green-200"
+                        : "bg-red-50 text-red-900 border border-red-200"
+                    }`}
+                  >
+                    {resetMsg.text}
+                  </div>
+                )}
+
+                <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      New Password *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showNewPassword ? "text" : "password"}
+                        required
+                        placeholder="Min. 6 characters"
+                        value={newPasswordVal}
+                        onChange={(e) => setNewPasswordVal(e.target.value)}
+                        className="w-full px-3.5 py-2.5 pr-14 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-cbsua-green text-slate-900"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        className="absolute right-3 top-2.5 text-xs text-slate-500 hover:text-slate-700 font-semibold"
+                      >
+                        {showNewPassword ? "Hide" : "Show"}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Confirm New Password *
+                    </label>
+                    <input
+                      type={showNewPassword ? "text" : "password"}
+                      required
+                      placeholder="Re-enter new password"
+                      value={confirmPasswordVal}
+                      onChange={(e) => setConfirmPasswordVal(e.target.value)}
+                      className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-cbsua-green text-slate-900"
+                    />
+                  </div>
+
+                  <div className="pt-3 flex items-center justify-end gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPasswordResetStudent(null);
+                        setResetMsg(null);
+                      }}
+                      className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isResettingPassword}
+                      className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-cbsua-green hover:bg-green-800 transition shadow-md disabled:opacity-50 flex items-center gap-1.5"
+                    >
+                      <KeyRound className="w-3.5 h-3.5" />
+                      {isResettingPassword ? "Updating..." : "Save New Password"}
+                    </button>
+                  </div>
+                </form>
               </div>
             </div>
           </div>

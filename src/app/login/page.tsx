@@ -7,15 +7,40 @@ import Image from "next/image";
 import { Lock } from "lucide-react";
 
 export default function Login() {
-  const [studentId, setStudentId] = useState("2021-10492");
+  const [identifier, setIdentifier] = useState("2021-10492");
   const [password, setPassword] = useState("password123");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
   const router = useRouter();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const idToUse = studentId.trim() || "2021-10492";
-    sessionStorage.setItem("cbsua_student_id", idToUse);
-    router.push("/dashboard");
+    const idToUse = identifier.trim() || "2021-10492";
+    setIsLoggingIn(true);
+    setErrorMsg("");
+
+    try {
+      const res = await fetch("/api/student/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier: idToUse, password }),
+      });
+      const data = await res.json();
+
+      if (data.success && data.data) {
+        sessionStorage.setItem("cbsua_student_id", data.data.studentId);
+        if (data.data.username) {
+          sessionStorage.setItem("cbsua_student_username", data.data.username);
+        }
+        router.push("/dashboard");
+      } else {
+        setErrorMsg(data.error || "Invalid username/student ID or password.");
+      }
+    } catch (err) {
+      setErrorMsg("Failed to connect to authentication server.");
+    } finally {
+      setIsLoggingIn(false);
+    }
   };
 
   return (
@@ -41,17 +66,25 @@ export default function Login() {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-green-100">
+          {errorMsg && (
+            <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-900 border border-red-200 text-xs font-semibold">
+              {errorMsg}
+            </div>
+          )}
+
           <form className="space-y-6" onSubmit={handleLogin}>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Student ID</label>
+              <label className="block text-sm font-medium text-gray-700">
+                Student ID or Username
+              </label>
               <div className="mt-1">
                 <input
                   type="text"
                   required
-                  value={studentId}
-                  onChange={(e) => setStudentId(e.target.value)}
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
                   className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-cbsua-green focus:border-cbsua-green sm:text-sm text-black"
-                  placeholder="e.g. 2021-0001"
+                  placeholder="e.g. 2021-10492 or jdelacruz"
                 />
               </div>
             </div>
@@ -94,36 +127,36 @@ export default function Login() {
               <div className="flex flex-wrap gap-1.5">
                 <button
                   type="button"
-                  onClick={() => { setStudentId("2021-10492"); setPassword("password123"); }}
+                  onClick={() => { setIdentifier("jdelacruz"); setPassword("password123"); }}
                   className={`px-2 py-1 rounded text-[11px] font-medium border transition ${
-                    studentId === "2021-10492"
+                    identifier === "jdelacruz" || identifier === "2021-10492"
                       ? "bg-cbsua-green text-white border-cbsua-green"
                       : "bg-white hover:bg-emerald-50 text-emerald-800 border-emerald-300"
                   }`}
                 >
-                  Juan Dela Cruz (CT Assigned)
+                  Juan Dela Cruz (@jdelacruz)
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setStudentId("2021-10511"); setPassword("password123"); }}
+                  onClick={() => { setIdentifier("ksalazar"); setPassword("password123"); }}
                   className={`px-2 py-1 rounded text-[11px] font-medium border transition ${
-                    studentId === "2021-10511"
+                    identifier === "ksalazar" || identifier === "2021-10511"
                       ? "bg-cbsua-green text-white border-cbsua-green"
                       : "bg-white hover:bg-emerald-50 text-emerald-800 border-emerald-300"
                   }`}
                 >
-                  Kristine Salazar (CT Assigned)
+                  Kristine Salazar (@ksalazar)
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setStudentId("2021-0001"); setPassword("password123"); }}
+                  onClick={() => { setIdentifier("jdoe"); setPassword("password123"); }}
                   className={`px-2 py-1 rounded text-[11px] font-medium border transition ${
-                    studentId === "2021-0001"
+                    identifier === "jdoe" || identifier === "2021-0001"
                       ? "bg-amber-600 text-white border-amber-600"
                       : "bg-white hover:bg-amber-50 text-amber-800 border-amber-300"
                   }`}
                 >
-                  John Doe (CT Unassigned)
+                  John Doe (@jdoe)
                 </button>
               </div>
             </div>
@@ -131,9 +164,10 @@ export default function Login() {
             <div>
               <button
                 type="submit"
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-cbsua-green hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cbsua-green transition-colors"
+                disabled={isLoggingIn}
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-cbsua-green hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cbsua-green transition-colors disabled:opacity-50"
               >
-                Sign in to Portal
+                {isLoggingIn ? "Signing in..." : "Sign in to Portal"}
               </button>
             </div>
           </form>

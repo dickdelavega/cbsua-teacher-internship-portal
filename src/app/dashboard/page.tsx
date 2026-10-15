@@ -3,11 +3,36 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { FileText, CheckCircle, School, User, BookOpen, AlertCircle, Star, Edit3, Award } from "lucide-react";
+import {
+  FileText,
+  CheckCircle,
+  School,
+  User,
+  BookOpen,
+  AlertCircle,
+  Star,
+  Edit3,
+  Award,
+  KeyRound,
+  Lock,
+  X,
+} from "lucide-react";
 
 export default function Dashboard() {
   const [student, setStudent] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Student Change Password Modal State
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPasswordValues, setShowPasswordValues] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [changePasswordMsg, setChangePasswordMsg] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   useEffect(() => {
     const sessionStudentId =
@@ -26,6 +51,66 @@ export default function Dashboard() {
       .catch((err) => console.error("Error fetching student profile", err))
       .finally(() => setIsLoading(false));
   }, []);
+
+  const handleChangePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!student) return;
+
+    if (newPassword.length < 6) {
+      setChangePasswordMsg({
+        type: "error",
+        text: "New password must be at least 6 characters long.",
+      });
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setChangePasswordMsg({ type: "error", text: "New passwords do not match." });
+      return;
+    }
+
+    setIsChangingPassword(true);
+    setChangePasswordMsg(null);
+
+    try {
+      const res = await fetch("/api/student/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentIdentifier: student.studentId,
+          currentPassword,
+          newPassword,
+        }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setChangePasswordMsg({
+          type: "success",
+          text: "Password updated successfully!",
+        });
+        setTimeout(() => {
+          setShowPasswordModal(false);
+          setChangePasswordMsg(null);
+          setCurrentPassword("");
+          setNewPassword("");
+          setConfirmPassword("");
+        }, 1500);
+      } else {
+        setChangePasswordMsg({
+          type: "error",
+          text: data.error || "Failed to change password.",
+        });
+      }
+    } catch (err) {
+      setChangePasswordMsg({
+        type: "error",
+        text: "Network error while changing password.",
+      });
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800">
@@ -47,10 +132,25 @@ export default function Dashboard() {
             <span className="text-xs text-yellow-300 font-medium">Intern Portal • STES</span>
           </div>
         </div>
-        <div className="flex items-center gap-4 text-xs sm:text-sm">
-          <span className="hidden sm:inline font-medium text-green-100">
+        <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm">
+          <span className="hidden md:inline font-medium text-green-100">
             Welcome, {student ? student.name : "Pre-Service Teacher"}
           </span>
+          <button
+            type="button"
+            onClick={() => {
+              setShowPasswordModal(true);
+              setCurrentPassword("");
+              setNewPassword("");
+              setConfirmPassword("");
+              setChangePasswordMsg(null);
+            }}
+            className="bg-white/10 hover:bg-white/20 border border-white/20 px-3 py-1.5 rounded-lg transition font-semibold flex items-center gap-1.5 text-xs text-white"
+          >
+            <KeyRound className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Change Password</span>
+            <span className="sm:hidden">Password</span>
+          </button>
           <Link
             href="/"
             className="bg-green-800 hover:bg-green-700 px-3 py-1.5 rounded-lg transition font-semibold"
@@ -72,9 +172,14 @@ export default function Dashboard() {
               <h2 className="text-2xl font-extrabold text-slate-900">
                 {student ? student.name : "Pre-Service Teacher Intern"}
               </h2>
-              <div className="text-xs text-slate-500 font-mono mt-0.5">
-                Student ID: {student ? student.studentId : "2021-10492"} •{" "}
-                {student ? student.program : "BSED - Major in English"}
+              <div className="text-xs text-slate-500 font-mono mt-0.5 flex items-center gap-2 flex-wrap">
+                <span>Student ID: <strong className="text-slate-700">{student ? student.studentId : "2021-10492"}</strong></span>
+                {student?.username && (
+                  <span className="text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-semibold text-[11px]">
+                    @{student.username}
+                  </span>
+                )}
+                <span>• {student ? student.program : "BSED - Major in English"}</span>
               </div>
             </div>
 
@@ -250,6 +355,123 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+
+        {/* Change Password Modal */}
+        {showPasswordModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+            <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              <div className="bg-gradient-to-r from-cbsua-green to-emerald-900 text-white p-5 relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPasswordModal(false);
+                    setChangePasswordMsg(null);
+                  }}
+                  className="absolute right-4 top-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition"
+                  aria-label="Close modal"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 text-yellow-300 text-xs font-semibold mb-1 border border-white/10">
+                  <KeyRound className="w-3.5 h-3.5" />
+                  Account Security
+                </div>
+                <h3 className="text-lg font-bold">Change Your Password</h3>
+                <p className="text-green-100 text-xs mt-0.5">
+                  Update your personal login password for the student intern portal.
+                </p>
+              </div>
+
+              <div className="p-6">
+                {changePasswordMsg && (
+                  <div
+                    className={`mb-4 p-3.5 rounded-xl text-xs font-semibold ${
+                      changePasswordMsg.type === "success"
+                        ? "bg-green-50 text-green-900 border border-green-200"
+                        : "bg-red-50 text-red-900 border border-red-200"
+                    }`}
+                  >
+                    {changePasswordMsg.text}
+                  </div>
+                )}
+
+                <form onSubmit={handleChangePasswordSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Current Password *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showPasswordValues ? "text" : "password"}
+                        required
+                        placeholder="Enter your current password"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        className="w-full px-3.5 py-2.5 pr-14 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-cbsua-green text-slate-900"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPasswordValues(!showPasswordValues)}
+                        className="absolute right-3 top-2.5 text-xs text-slate-500 hover:text-slate-700 font-semibold"
+                      >
+                        {showPasswordValues ? "Hide" : "Show"}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      New Password *
+                    </label>
+                    <input
+                      type={showPasswordValues ? "text" : "password"}
+                      required
+                      placeholder="Min. 6 characters"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-cbsua-green text-slate-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Confirm New Password *
+                    </label>
+                    <input
+                      type={showPasswordValues ? "text" : "password"}
+                      required
+                      placeholder="Re-enter new password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-cbsua-green text-slate-900"
+                    />
+                  </div>
+
+                  <div className="pt-3 flex items-center justify-end gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPasswordModal(false);
+                        setChangePasswordMsg(null);
+                      }}
+                      className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isChangingPassword}
+                      className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-cbsua-green hover:bg-green-800 transition shadow-md disabled:opacity-50 flex items-center gap-1.5"
+                    >
+                      <Lock className="w-3.5 h-3.5" />
+                      {isChangingPassword ? "Saving..." : "Update Password"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

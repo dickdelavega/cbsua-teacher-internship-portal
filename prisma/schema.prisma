@@ -30,6 +30,7 @@ model CooperatingTeacher {
 model Student {
   id        String   @id @default(cuid())
   studentId String   @unique
+  username  String?  @unique
   name      String
   program   String
   password  String
