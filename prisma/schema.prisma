@@ -1,0 +1,76 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model SupervisingProfessor {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  name      String
+  password  String
+  students  Student[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model CooperatingTeacher {
+  id         String    @id @default(cuid())
+  name       String
+  school     String
+  gradeLevel String
+  students   Student[]
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+model Student {
+  id        String   @id @default(cuid())
+  studentId String   @unique
+  name      String
+  program   String
+  password  String
+  
+  spId      String?
+  sp        SupervisingProfessor? @relation(fields: [spId], references: [id])
+
+  ctId      String?
+  ct        CooperatingTeacher?   @relation(fields: [ctId], references: [id])
+  
+  evaluationsCT EvaluationCT[]
+  evaluationsSP EvaluationSP[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EvaluationCT {
+  id        String   @id @default(cuid())
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id])
+  
+  teacherName String
+  schoolName  String
+  
+  responses   Json
+  comments    String?
+  
+  createdAt DateTime @default(now())
+}
+
+model EvaluationSP {
+  id        String   @id @default(cuid())
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id])
+  
+  profName  String
+  program   String
+  
+  responses   Json
+  comments    String?
+  
+  createdAt DateTime @default(now())
+}
