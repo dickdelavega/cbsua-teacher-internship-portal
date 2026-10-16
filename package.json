@@ -30,6 +30,16 @@
     "tailwindcss": "^4",
     "typescript": "^5"
   },
+  "allowScripts": {
+    "@prisma/client": true,
+    "@prisma/client@5.22.0": true,
+    "@prisma/engines": true,
+    "@prisma/engines@5.22.0": true,
+    "prisma": true,
+    "prisma@5.22.0": true,
+    "unrs-resolver": true,
+    "unrs-resolver@1.12.2": true
+  },
   "pnpm": {
     "onlyBuiltDependencies": [
       "@prisma/client",
