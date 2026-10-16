@@ -128,14 +128,32 @@ export default function SupervisingProfessorDashboard() {
   const loadData = async () => {
     setIsLoading(true);
     try {
+      const fetchJson = async (url: string) => {
+        try {
+          const res = await fetch(url);
+          if (!res.ok) return null;
+          const ct = res.headers.get("content-type") || "";
+          if (ct.includes("application/json")) {
+            return await res.json();
+          }
+          return null;
+        } catch {
+          return null;
+        }
+      };
+
       const [resStudents, resCTs, resProf] = await Promise.all([
-        fetch("/api/sp/students").then((r) => r.json()),
-        fetch("/api/sp/cooperating-teachers").then((r) => r.json()),
-        fetch("/api/sp/profile").then((r) => r.json()).catch(() => null),
+        fetchJson("/api/sp/students"),
+        fetchJson("/api/sp/cooperating-teachers"),
+        fetchJson("/api/sp/profile"),
       ]);
 
-      if (resStudents?.success) setStudents(resStudents.data);
-      if (resCTs?.success) setCooperatingTeachers(resCTs.data);
+      if (resStudents?.success && Array.isArray(resStudents.data)) {
+        setStudents(resStudents.data);
+      }
+      if (resCTs?.success && Array.isArray(resCTs.data)) {
+        setCooperatingTeachers(resCTs.data);
+      }
       if (resProf?.success && resProf?.data) {
         setProfessor((prev) => ({ ...prev, ...resProf.data }));
       }
@@ -576,6 +594,24 @@ export default function SupervisingProfessorDashboard() {
                 >
                   <RefreshCw className="w-4 h-4" />
                 </button>
+
+                <button
+                  onClick={async () => {
+                    try {
+                      setIsLoading(true);
+                      await fetch("/api/seed");
+                    } catch (e) {
+                      console.warn(e);
+                    } finally {
+                      await loadData();
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-cbsua-green text-white text-xs font-semibold rounded-lg hover:bg-emerald-800 transition shadow-xs"
+                  title="Initialize Database and Seed Demo Records"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Sync Demo Data</span>
+                </button>
               </div>
             </div>
 
@@ -598,7 +634,24 @@ export default function SupervisingProfessorDashboard() {
                       <tr>
                         <td colSpan={6} className="py-12 text-center text-slate-400">
                           <Users className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                          No student interns found matching your filter criteria.
+                          <div className="font-semibold text-slate-600">No student interns found matching your filter criteria.</div>
+                          <div className="text-xs text-slate-400 mt-1">If your database is empty, load the official demo interns to get started.</div>
+                          <button
+                            onClick={async () => {
+                              try {
+                                setIsLoading(true);
+                                await fetch("/api/seed");
+                              } catch (e) {
+                                console.warn(e);
+                              } finally {
+                                await loadData();
+                              }
+                            }}
+                            className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-cbsua-green text-white text-xs font-bold rounded-lg hover:bg-emerald-800 transition shadow-xs"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                            Load CBSUA Demo Interns
+                          </button>
                         </td>
                       </tr>
                     ) : (

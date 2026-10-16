@@ -49,6 +49,14 @@ declare const globalThis: {
   __spStore?: any;
 } & typeof global;
 
+async function withTimeout<T>(promise: Promise<T>, ms = 3000): Promise<T> {
+  let timer: NodeJS.Timeout;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Database query timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
+}
+
 const defaultData = {
   professors: [
     {
@@ -80,6 +88,13 @@ const defaultData = {
       gradeLevel: 'Grade 7 - Science & Technology',
       createdAt: new Date().toISOString(),
     },
+    {
+      id: 'ct-04',
+      name: 'Engr. Antonio M. Reyes, LPT',
+      school: 'CBSUA Laboratory High School',
+      gradeLevel: 'Grade 8 - Technology and Livelihood Education',
+      createdAt: new Date().toISOString(),
+    },
   ],
   students: [
     {
@@ -91,6 +106,19 @@ const defaultData = {
       password: 'password123',
       spId: 'sp-cbsua-01',
       ctId: 'ct-01',
+      evaluationCT: {
+        id: 'eval-ct-01',
+        teacherName: 'Mrs. Rochelle B. Alvarez, LPT',
+        schoolName: 'Pili National High School',
+        responses: { q1: '5', q2: '5', q3: '4', q4: '5', q5: '4' },
+        comments: 'Outstanding instructional mastery and classroom presence.',
+        rating: {
+          average: 4.6,
+          totalQuestions: 5,
+          descriptor: 'Highly Observed',
+        },
+        createdAt: new Date().toISOString(),
+      },
       createdAt: new Date().toISOString(),
     },
     {
@@ -112,6 +140,17 @@ const defaultData = {
       program: 'BSED - Major in General Science',
       password: 'password123',
       spId: 'sp-cbsua-01',
+      ctId: 'ct-03',
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: 'stud-04',
+      studentId: '2021-10988',
+      username: 'pvelasco',
+      name: 'Patricia Nicole Velasco',
+      program: 'BSED - Major in English',
+      password: 'password123',
+      spId: 'sp-cbsua-01',
       ctId: null,
       createdAt: new Date().toISOString(),
     },
@@ -127,7 +166,7 @@ function getFallbackStore() {
 
 export async function getSupervisingProfessor() {
   try {
-    const prof = await prisma.supervisingProfessor.findFirst();
+    const prof = await withTimeout(prisma.supervisingProfessor.findFirst(), 2500);
     if (prof) {
       return {
         id: prof.id,
@@ -137,7 +176,7 @@ export async function getSupervisingProfessor() {
       };
     }
   } catch (err) {
-    // DB not available, fallback
+    // DB not available or timeout, fallback
   }
 
   const fb = getFallbackStore();
@@ -146,21 +185,24 @@ export async function getSupervisingProfessor() {
 
 export async function getCooperatingTeachers(): Promise<CooperatingTeacherData[]> {
   try {
-    const cts = await prisma.cooperatingTeacher.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: { students: true },
-    });
-    if (cts.length > 0) {
+    const cts = await withTimeout(
+      prisma.cooperatingTeacher.findMany({
+        orderBy: { createdAt: 'desc' },
+        include: { students: true },
+      }),
+      2500
+    );
+    if (cts && cts.length > 0) {
       return cts.map((ct) => ({
         id: ct.id,
         name: ct.name,
         school: ct.school,
         gradeLevel: ct.gradeLevel,
-        createdAt: ct.createdAt.toISOString(),
+        createdAt: ct.createdAt ? new Date(ct.createdAt).toISOString() : new Date().toISOString(),
       }));
     }
   } catch (err) {
-    // DB error fallback
+    // DB error or timeout fallback
   }
 
   const fb = getFallbackStore();
@@ -173,19 +215,22 @@ export async function addCooperatingTeacher(data: {
   gradeLevel: string;
 }): Promise<CooperatingTeacherData> {
   try {
-    const created = await prisma.cooperatingTeacher.create({
-      data: {
-        name: data.name,
-        school: data.school,
-        gradeLevel: data.gradeLevel,
-      },
-    });
+    const created = await withTimeout(
+      prisma.cooperatingTeacher.create({
+        data: {
+          name: data.name,
+          school: data.school,
+          gradeLevel: data.gradeLevel,
+        },
+      }),
+      3000
+    );
     return {
       id: created.id,
       name: created.name,
       school: created.school,
       gradeLevel: created.gradeLevel,
-      createdAt: created.createdAt.toISOString(),
+      createdAt: created.createdAt ? new Date(created.createdAt).toISOString() : new Date().toISOString(),
     };
   } catch (err) {
     // Fallback in-memory store
@@ -230,17 +275,20 @@ export function calculateCTRating(responses: any): {
 
 export async function getEnrolledStudents(): Promise<StudentData[]> {
   try {
-    const students = await prisma.student.findMany({
-      include: {
-        ct: true,
-        evaluationsCT: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
+    const students = await withTimeout(
+      prisma.student.findMany({
+        include: {
+          ct: true,
+          evaluationsCT: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-    if (students.length > 0) {
+        orderBy: { createdAt: 'desc' },
+      }),
+      2500
+    );
+    if (students && students.length > 0) {
       return students.map((s) => {
         const latestEval = s.evaluationsCT && s.evaluationsCT.length > 0 ? s.evaluationsCT[0] : null;
         return {
@@ -267,15 +315,15 @@ export async function getEnrolledStudents(): Promise<StudentData[]> {
                 responses: latestEval.responses as any,
                 comments: latestEval.comments,
                 rating: calculateCTRating(latestEval.responses),
-                createdAt: latestEval.createdAt.toISOString(),
+                createdAt: latestEval.createdAt ? new Date(latestEval.createdAt).toISOString() : new Date().toISOString(),
               }
             : null,
-          createdAt: s.createdAt.toISOString(),
+          createdAt: s.createdAt ? new Date(s.createdAt).toISOString() : new Date().toISOString(),
         };
       });
     }
   } catch (err) {
-    // DB error fallback
+    // DB error or timeout fallback
   }
 
   const fb = getFallbackStore();
@@ -286,6 +334,7 @@ export async function getEnrolledStudents(): Promise<StudentData[]> {
       ...safe,
       username: safe.username || safe.studentId,
       ct,
+      evaluationCT: safe.evaluationCT || null,
     };
   });
 }
@@ -304,18 +353,21 @@ export async function enrollStudent(data: {
   const cleanPassword = (data.temporaryPassword && data.temporaryPassword.trim()) || 'password123';
 
   try {
-    const created = await prisma.student.create({
-      data: {
-        studentId: cleanStudentId,
-        username: cleanUsername,
-        name: data.name.trim(),
-        program: data.program.trim(),
-        password: cleanPassword,
-        spId: sp.id,
-        ctId: data.ctId || null,
-      },
-      include: { ct: true },
-    });
+    const created = await withTimeout(
+      prisma.student.create({
+        data: {
+          studentId: cleanStudentId,
+          username: cleanUsername,
+          name: data.name.trim(),
+          program: data.program.trim(),
+          password: cleanPassword,
+          spId: sp.id,
+          ctId: data.ctId || null,
+        },
+        include: { ct: true },
+      }),
+      3500
+    );
     return {
       id: created.id,
       studentId: created.studentId,
@@ -332,7 +384,7 @@ export async function enrollStudent(data: {
             gradeLevel: created.ct.gradeLevel,
           }
         : null,
-      createdAt: created.createdAt.toISOString(),
+      createdAt: created.createdAt ? new Date(created.createdAt).toISOString() : new Date().toISOString(),
     };
   } catch (err: any) {
     // Fallback store
