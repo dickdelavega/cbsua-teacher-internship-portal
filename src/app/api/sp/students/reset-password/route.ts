@@ -23,9 +23,10 @@ export async function POST(req: Request) {
 
     const result = await resetStudentPassword(studentId, newPassword);
     return NextResponse.json({ success: true, message: result.message });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : 'Failed to update student password.';
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to update student password.' },
+      { success: false, error: errorMsg },
       { status: 400 }
     );
   }

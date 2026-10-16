@@ -19,9 +19,10 @@ export async function POST(req: Request) {
       message: 'Student login successful!',
       data: student,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : 'Invalid credentials.';
     return NextResponse.json(
-      { success: false, error: error.message || 'Invalid credentials.' },
+      { success: false, error: errorMsg },
       { status: 401 }
     );
   }

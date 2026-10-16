@@ -125,24 +125,6 @@ export default function SupervisingProfessorDashboard() {
       ? (ratingsWithValues.reduce((sum, r) => sum + r, 0) / ratingsWithValues.length).toFixed(2)
       : null;
 
-  useEffect(() => {
-    // Check local session
-    const stored = sessionStorage.getItem("sp_user");
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        setProfessor((prev) => ({
-          ...prev,
-          name: parsed.name || prev.name,
-          email: parsed.email || prev.email,
-        }));
-      } catch (e) {
-        // ignore
-      }
-    }
-    loadData();
-  }, []);
-
   const loadData = async () => {
     setIsLoading(true);
     try {
@@ -163,6 +145,26 @@ export default function SupervisingProfessorDashboard() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    const init = async () => {
+      const stored = sessionStorage.getItem("sp_user");
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setProfessor((prev) => ({
+            ...prev,
+            name: parsed.name || prev.name,
+            email: parsed.email || prev.email,
+          }));
+        } catch {
+          // ignore
+        }
+      }
+      await loadData();
+    };
+    init();
+  }, []);
 
   const handleEnrollSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
