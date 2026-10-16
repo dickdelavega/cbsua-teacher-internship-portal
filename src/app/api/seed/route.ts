@@ -3,6 +3,67 @@ import prisma from '@/lib/prisma';
 
 export async function GET() {
   try {
+    // 0. Ensure tables exist if on PostgreSQL (e.g. Supabase, Neon, Vercel Postgres)
+    try {
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "SupervisingProfessor" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "email" TEXT NOT NULL UNIQUE,
+          "name" TEXT NOT NULL,
+          "password" TEXT NOT NULL,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS "CooperatingTeacher" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "name" TEXT NOT NULL,
+          "school" TEXT NOT NULL,
+          "gradeLevel" TEXT NOT NULL,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS "Student" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "studentId" TEXT NOT NULL UNIQUE,
+          "username" TEXT UNIQUE,
+          "name" TEXT NOT NULL,
+          "program" TEXT NOT NULL,
+          "password" TEXT NOT NULL,
+          "spId" TEXT,
+          "ctId" TEXT,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS "EvaluationCT" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "studentId" TEXT NOT NULL,
+          "teacherName" TEXT NOT NULL,
+          "schoolName" TEXT NOT NULL,
+          "responses" JSONB NOT NULL,
+          "comments" TEXT,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS "EvaluationSP" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "studentId" TEXT NOT NULL,
+          "profName" TEXT NOT NULL,
+          "program" TEXT NOT NULL,
+          "responses" JSONB NOT NULL,
+          "comments" TEXT,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        ALTER TABLE "Student" ADD COLUMN IF NOT EXISTS "username" TEXT;
+        CREATE UNIQUE INDEX IF NOT EXISTS "Student_username_key" ON "Student"("username");
+      `);
+    } catch (ddlError) {
+      console.warn('Note: Auto DDL skipped or not applicable (e.g., MySQL):', ddlError);
+    }
+
     // 1. Supervising Professor
     const sp = await prisma.supervisingProfessor.upsert({
       where: { email: 'mesantos@cbsua.edu.ph' },
