@@ -207,7 +207,7 @@ export default function SupervisingProfessorDashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...newStudent,
-          spId: professor.id,
+          spId: professor.id || professor.email,
         }),
       });
       const data = await res.json();
@@ -218,7 +218,7 @@ export default function SupervisingProfessorDashboard() {
           studentId: "",
           username: "",
           name: "",
-          program: "BSED - Major in English",
+          program: professor.program || "Bachelor of Secondary Education",
           temporaryPassword: "",
           ctId: "",
         });
@@ -1054,13 +1054,22 @@ export default function SupervisingProfessorDashboard() {
 
             {enrollMsg && (
               <div
-                className={`mb-6 p-4 rounded-xl text-sm font-semibold ${
+                className={`mb-6 p-4 rounded-xl text-sm font-semibold flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                   enrollMsg.type === "success"
                     ? "bg-green-50 text-green-900 border border-green-200"
                     : "bg-red-50 text-red-900 border border-red-200"
                 }`}
               >
-                {enrollMsg.text}
+                <span>{enrollMsg.text}</span>
+                {enrollMsg.type === "success" && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("students")}
+                    className="text-xs bg-cbsua-green text-white font-bold px-3 py-1.5 rounded-lg hover:bg-green-800 transition shrink-0"
+                  >
+                    View in Roster →
+                  </button>
+                )}
               </div>
             )}
 
@@ -1149,18 +1158,26 @@ export default function SupervisingProfessorDashboard() {
                   onChange={(e) => setNewStudent({ ...newStudent, program: e.target.value })}
                   className="w-full px-4 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-cbsua-green text-slate-900 font-medium"
                 >
-                  <option value="BSED - Major in English">BSED - Major in English</option>
-                  <option value="BSED - Major in Mathematics">BSED - Major in Mathematics</option>
-                  <option value="BSED - Major in General Science">BSED - Major in General Science</option>
-                  <option value="BSED - Major in Social Studies">BSED - Major in Social Studies</option>
-                  <option value="BSED - Major in Filipino">BSED - Major in Filipino</option>
-                  <option value="BEED - Generalist">BEED - Generalist Elementary Education</option>
-                  <option value="BTVTED - Food and Service Management">
-                    BTVTED - Food and Service Management
-                  </option>
-                  <option value="BPEd - Bachelor of Physical Education">
-                    BPEd - Bachelor of Physical Education
-                  </option>
+                  <optgroup label="Secondary Education (BSED)">
+                    <option value="Bachelor of Secondary Education">Bachelor of Secondary Education (General)</option>
+                    <option value="BSED - Major in English">BSED - Major in English</option>
+                    <option value="BSED - Major in Mathematics">BSED - Major in Mathematics</option>
+                    <option value="BSED - Major in General Science">BSED - Major in General Science</option>
+                    <option value="BSED - Major in Social Studies">BSED - Major in Social Studies</option>
+                    <option value="BSED - Major in Filipino">BSED - Major in Filipino</option>
+                  </optgroup>
+                  <optgroup label="Elementary Education (BEED)">
+                    <option value="Bachelor of Elementary Education">Bachelor of Elementary Education</option>
+                    <option value="BEED - Generalist">BEED - Generalist Elementary Education</option>
+                  </optgroup>
+                  <optgroup label="Technology and Livelihood Education (BTLEd / TVET)">
+                    <option value="Bachelor of Technology and Livelihood Education">Bachelor of Technology and Livelihood Education</option>
+                    <option value="BTLEd - Home Economics">BTLEd - Home Economics</option>
+                    <option value="BTLEd - Industrial Arts">BTLEd - Industrial Arts</option>
+                    <option value="BTLEd - Information and Communication Technology">BTLEd - ICT</option>
+                    <option value="BTVTED - Food and Service Management">BTVTED - Food and Service Management</option>
+                    <option value="BPEd - Bachelor of Physical Education">BPEd - Bachelor of Physical Education</option>
+                  </optgroup>
                 </select>
               </div>
 
