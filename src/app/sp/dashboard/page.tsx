@@ -66,6 +66,7 @@ interface Student {
 export default function SupervisingProfessorDashboard() {
   const router = useRouter();
   const [professor, setProfessor] = useState({
+    id: "sp-cbsua-01",
     name: "Dr. Maria Elena Santos",
     email: "mesantos@cbsua.edu.ph",
     department: "College of Education - Department of Teacher Internship",
@@ -126,7 +127,7 @@ export default function SupervisingProfessorDashboard() {
       ? (ratingsWithValues.reduce((sum, r) => sum + r, 0) / ratingsWithValues.length).toFixed(2)
       : null;
 
-  const loadData = async () => {
+  const loadData = async (activeSpEmail?: string, activeSpId?: string) => {
     setIsLoading(true);
     try {
       const fetchJson = async (url: string) => {
@@ -143,10 +144,17 @@ export default function SupervisingProfessorDashboard() {
         }
       };
 
+      const queryParams = new URLSearchParams();
+      const effEmail = activeSpEmail || professor.email;
+      const effId = activeSpId || professor.id;
+      if (effEmail) queryParams.set("email", effEmail);
+      if (effId) queryParams.set("spId", effId);
+      const queryStr = queryParams.toString() ? `?${queryParams.toString()}` : "";
+
       const [resStudents, resCTs, resProf] = await Promise.all([
-        fetchJson("/api/sp/students"),
+        fetchJson(`/api/sp/students${queryStr}`),
         fetchJson("/api/sp/cooperating-teachers"),
-        fetchJson("/api/sp/profile"),
+        fetchJson(`/api/sp/profile${queryStr}`),
       ]);
 
       if (resStudents?.success && Array.isArray(resStudents.data)) {
@@ -167,20 +175,23 @@ export default function SupervisingProfessorDashboard() {
 
   useEffect(() => {
     const init = async () => {
-      const stored = sessionStorage.getItem("sp_user");
+      let activeEmail = "";
+      let activeId = "";
+      const stored = sessionStorage.getItem("sp_user") || localStorage.getItem("sp_user");
       if (stored) {
         try {
           const parsed = JSON.parse(stored);
+          activeEmail = parsed.email || "";
+          activeId = parsed.id || "";
           setProfessor((prev) => ({
             ...prev,
-            name: parsed.name || prev.name,
-            email: parsed.email || prev.email,
+            ...parsed,
           }));
         } catch {
           // ignore
         }
       }
-      await loadData();
+      await loadData(activeEmail, activeId);
     };
     init();
   }, []);
@@ -194,7 +205,10 @@ export default function SupervisingProfessorDashboard() {
       const res = await fetch("/api/sp/students", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newStudent),
+        body: JSON.stringify({
+          ...newStudent,
+          spId: professor.id,
+        }),
       });
       const data = await res.json();
 
@@ -208,7 +222,7 @@ export default function SupervisingProfessorDashboard() {
           temporaryPassword: "",
           ctId: "",
         });
-        loadData();
+        loadData(professor.email, professor.id);
       } else {
         setEnrollMsg({ type: "error", text: data.error || "Failed to enroll student." });
       }
@@ -380,9 +394,17 @@ export default function SupervisingProfessorDashboard() {
                 {professor.program || "Bachelor of Secondary Education"}
               </div>
             </div>
+            <Link
+              href="/sp/login"
+              className="text-xs font-semibold text-slate-600 hover:text-cbsua-green flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 hover:border-cbsua-green/40 hover:bg-green-50 transition"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Switch Account</span>
+            </Link>
             <button
               onClick={() => {
                 sessionStorage.removeItem("sp_user");
+                localStorage.removeItem("sp_user");
                 router.push("/sp/login");
               }}
               className="text-xs font-semibold text-slate-600 hover:text-red-600 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 hover:border-red-200 hover:bg-red-50 transition"
@@ -409,8 +431,16 @@ export default function SupervisingProfessorDashboard() {
               <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
                 Welcome, {professor.name}
               </h1>
-              <p className="text-green-100 text-sm mt-1 max-w-2xl">
-                Manage pre-service teacher deployment, enroll eligible intern students, and assign them
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                <span className="text-xs bg-emerald-800/80 text-emerald-100 px-2.5 py-1 rounded-md border border-emerald-600/40 font-mono">
+                  {professor.email}
+                </span>
+                <span className="text-xs bg-yellow-400/20 text-yellow-200 px-2.5 py-1 rounded-md border border-yellow-300/30 font-semibold">
+                  Program: {professor.program || "Bachelor of Secondary Education"}
+                </span>
+              </div>
+              <p className="text-green-100 text-sm mt-2 max-w-2xl">
+                Manage pre-service teacher deployment, enroll eligible intern students for your program, and assign them
                 to qualified Cooperating Teachers across accredited partner DepEd schools.
               </p>
             </div>
@@ -597,7 +627,7 @@ export default function SupervisingProfessorDashboard() {
                 </div>
 
                 <button
-                  onClick={loadData}
+                  onClick={() => loadData(professor.email, professor.id)}
                   className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600"
                   title="Refresh Roster"
                 >

@@ -221,12 +221,13 @@ export function getFallbackStore() {
 }
 
 export async function getSupervisingProfessor(identifier?: string) {
+  const cleanId = identifier?.trim();
   try {
-    const prof = identifier
+    const prof = cleanId
       ? await withTimeout(
           prisma.supervisingProfessor.findFirst({
             where: {
-              OR: [{ id: identifier }, { email: identifier }],
+              OR: [{ id: cleanId }, { email: cleanId.toLowerCase() }],
             },
           }),
           2500
@@ -247,8 +248,10 @@ export async function getSupervisingProfessor(identifier?: string) {
   }
 
   const fb = getFallbackStore();
-  if (identifier) {
-    const found = fb.professors.find((p: any) => p.id === identifier || p.email === identifier);
+  if (cleanId) {
+    const found = fb.professors.find(
+      (p: any) => p.id === cleanId || p.email.toLowerCase() === cleanId.toLowerCase()
+    );
     if (found) return found;
   }
   return fb.professors[0];
@@ -344,10 +347,134 @@ export function calculateCTRating(responses: any): {
   return { average: avg, totalQuestions: values.length, descriptor };
 }
 
-export async function getEnrolledStudents(): Promise<StudentData[]> {
+export async function verifySupervisingProfessorLogin(
+  email: string,
+  passwordAttempt: string
+): Promise<ProfessorProfile> {
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanPass = passwordAttempt.trim();
+
   try {
+    const prof = await withTimeout(
+      prisma.supervisingProfessor.findUnique({
+        where: { email: cleanEmail },
+      }),
+      2500
+    );
+
+    if (prof) {
+      if (prof.password !== cleanPass) {
+        throw new Error('Invalid institutional email or password.');
+      }
+      return {
+        id: prof.id,
+        name: prof.name,
+        email: prof.email,
+        department: 'College of Education',
+        program: prof.program || 'Bachelor of Secondary Education',
+      };
+    }
+  } catch (err: any) {
+    if (err.message === 'Invalid institutional email or password.') {
+      throw err;
+    }
+  }
+
+  // Fallback store
+  const fb = getFallbackStore();
+  const found = fb.professors.find(
+    (p: any) => p.email.toLowerCase() === cleanEmail
+  );
+
+  if (!found) {
+    throw new Error('Supervising professor account not found.');
+  }
+
+  if (found.password !== cleanPass) {
+    throw new Error('Invalid institutional email or password.');
+  }
+
+  return {
+    id: found.id,
+    name: found.name,
+    email: found.email,
+    department: found.department || 'College of Education',
+    program: found.program || 'Bachelor of Secondary Education',
+  };
+}
+
+export async function registerSupervisingProfessorAccount(data: {
+  name: string;
+  email: string;
+  password?: string;
+  program?: string;
+}): Promise<ProfessorProfile> {
+  const cleanName = data.name.trim();
+  const cleanEmail = data.email.trim().toLowerCase();
+  const cleanPass = data.password?.trim() || 'password123';
+  const cleanProgram = data.program?.trim() || 'Bachelor of Secondary Education';
+
+  try {
+    const created = await withTimeout(
+      prisma.supervisingProfessor.create({
+        data: {
+          name: cleanName,
+          email: cleanEmail,
+          password: cleanPass,
+          program: cleanProgram,
+        },
+      }),
+      3000
+    );
+    return {
+      id: created.id,
+      name: created.name,
+      email: created.email,
+      department: 'College of Education',
+      program: created.program,
+    };
+  } catch (err: any) {
+    const fb = getFallbackStore();
+    const existing = fb.professors.find((p: any) => p.email.toLowerCase() === cleanEmail);
+    if (existing) {
+      throw new Error(`Professor account with email ${cleanEmail} already exists.`);
+    }
+
+    const newProf = {
+      id: `sp-cbsua-${Date.now()}`,
+      name: cleanName,
+      email: cleanEmail,
+      password: cleanPass,
+      program: cleanProgram,
+      department: 'College of Education',
+      createdAt: new Date().toISOString(),
+    };
+    fb.professors.push(newProf);
+    return {
+      id: newProf.id,
+      name: newProf.name,
+      email: newProf.email,
+      department: newProf.department,
+      program: newProf.program,
+    };
+  }
+}
+
+export async function getEnrolledStudents(spIdentifier?: string): Promise<StudentData[]> {
+  const cleanId = spIdentifier?.trim();
+  try {
+    const whereClause: any = {};
+    if (cleanId) {
+      whereClause.OR = [
+        { spId: cleanId },
+        { sp: { id: cleanId } },
+        { sp: { email: cleanId.toLowerCase() } },
+      ];
+    }
+
     const students = await withTimeout(
       prisma.student.findMany({
+        where: whereClause,
         include: {
           ct: true,
           evaluationsCT: {
@@ -398,7 +525,18 @@ export async function getEnrolledStudents(): Promise<StudentData[]> {
   }
 
   const fb = getFallbackStore();
-  return fb.students.map((s: any) => {
+  let list = fb.students;
+  if (cleanId) {
+    const prof = fb.professors.find(
+      (p: any) => p.id === cleanId || p.email.toLowerCase() === cleanId.toLowerCase()
+    );
+    const targetSpId = prof?.id || cleanId;
+    list = fb.students.filter(
+      (s: any) => s.spId === targetSpId || s.spId === cleanId
+    );
+  }
+
+  return list.map((s: any) => {
     const ct = fb.cooperatingTeachers.find((c: any) => c.id === s.ctId) || null;
     const { password: _p, ...safe } = s;
     return {
@@ -417,11 +555,13 @@ export async function enrollStudent(data: {
   program: string;
   temporaryPassword?: string | null;
   ctId?: string | null;
+  spId?: string | null;
 }): Promise<StudentData> {
-  const sp = await getSupervisingProfessor();
+  const sp = await getSupervisingProfessor(data.spId || undefined);
   const cleanStudentId = data.studentId.trim();
   const cleanUsername = (data.username && data.username.trim()) || cleanStudentId;
   const cleanPassword = (data.temporaryPassword && data.temporaryPassword.trim()) || 'password123';
+  const assignedSpId = data.spId || sp.id;
 
   try {
     const created = await withTimeout(
