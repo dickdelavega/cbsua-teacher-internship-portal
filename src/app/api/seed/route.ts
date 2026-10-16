@@ -6,11 +6,22 @@ export async function GET() {
     // 0. Ensure tables exist if on PostgreSQL (e.g. Supabase, Neon, Vercel Postgres)
     try {
       await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "Dean" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "email" TEXT NOT NULL UNIQUE,
+          "name" TEXT NOT NULL,
+          "password" TEXT NOT NULL,
+          "title" TEXT NOT NULL DEFAULT 'Dean, College of Education',
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
         CREATE TABLE IF NOT EXISTS "SupervisingProfessor" (
           "id" TEXT NOT NULL PRIMARY KEY,
           "email" TEXT NOT NULL UNIQUE,
           "name" TEXT NOT NULL,
           "password" TEXT NOT NULL,
+          "program" TEXT DEFAULT 'Bachelor of Secondary Education',
           "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
           "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
@@ -58,24 +69,70 @@ export async function GET() {
         );
 
         ALTER TABLE "Student" ADD COLUMN IF NOT EXISTS "username" TEXT;
+        ALTER TABLE "SupervisingProfessor" ADD COLUMN IF NOT EXISTS "program" TEXT DEFAULT 'Bachelor of Secondary Education';
         CREATE UNIQUE INDEX IF NOT EXISTS "Student_username_key" ON "Student"("username");
       `);
     } catch (ddlError) {
       console.warn('Note: Auto DDL skipped or not applicable (e.g., MySQL):', ddlError);
     }
 
-    // 1. Supervising Professor
-    const sp = await prisma.supervisingProfessor.upsert({
-      where: { email: 'mesantos@cbsua.edu.ph' },
-      update: {},
+    // 1. Dean of the College of Education
+    const dean = await prisma.dean.upsert({
+      where: { email: 'dean.education@cbsua.edu.ph' },
+      update: {
+        name: 'Dr. Raquel M. Reapor, Ed.D.',
+        title: 'Dean, College of Education',
+      },
       create: {
-        name: 'Dr. Maria Elena Santos',
-        email: 'mesantos@cbsua.edu.ph',
+        name: 'Dr. Raquel M. Reapor, Ed.D.',
+        email: 'dean.education@cbsua.edu.ph',
         password: 'password123',
+        title: 'Dean, College of Education',
       },
     });
 
-    // 2. Cooperating Teachers
+    // 2. Multiple Supervising Professors per Program
+    const spList = [
+      {
+        name: 'Dr. Maria Elena Santos',
+        email: 'mesantos@cbsua.edu.ph',
+        password: 'password123',
+        program: 'Bachelor of Secondary Education',
+      },
+      {
+        name: 'Prof. Roberto C. Mendoza, MAEd',
+        email: 'rmendoza@cbsua.edu.ph',
+        password: 'password123',
+        program: 'Bachelor of Secondary Education',
+      },
+      {
+        name: 'Dr. Clarissa T. Ocampo',
+        email: 'cocampo@cbsua.edu.ph',
+        password: 'password123',
+        program: 'Bachelor of Elementary Education',
+      },
+      {
+        name: 'Engr. Danilo V. Bautista, Ed.D.',
+        email: 'dbautista@cbsua.edu.ph',
+        password: 'password123',
+        program: 'Bachelor of Technology and Livelihood Education',
+      },
+    ];
+
+    const seededSPs: any[] = [];
+    for (const spItem of spList) {
+      const sProf = await prisma.supervisingProfessor.upsert({
+        where: { email: spItem.email },
+        update: {
+          name: spItem.name,
+          program: spItem.program,
+        },
+        create: spItem,
+      });
+      seededSPs.push(sProf);
+    }
+
+    // 3. Cooperating Teachers
     const ctData = [
       {
         name: 'Mrs. Rochelle B. Alvarez, LPT',
@@ -112,38 +169,65 @@ export async function GET() {
       }
     }
 
-    // 3. Students
+    // 4. Students across the 3 Degree Programs
     const students = [
+      // BSED
       {
         studentId: '2021-10492',
         username: 'jdelacruz',
         name: 'Juan Dela Cruz',
-        program: 'BSED - Major in English',
-        spId: sp.id,
+        program: 'Bachelor of Secondary Education',
+        spId: seededSPs[0]?.id,
         ctId: createdCTs[0]?.id,
       },
       {
         studentId: '2021-10511',
         username: 'ksalazar',
         name: 'Kristine Mae Salazar',
-        program: 'BSED - Major in Mathematics',
-        spId: sp.id,
+        program: 'Bachelor of Secondary Education',
+        spId: seededSPs[0]?.id,
         ctId: createdCTs[1]?.id,
-      },
-      {
-        studentId: '2021-10678',
-        username: 'abautista',
-        name: 'Alvin Mark Bautista',
-        program: 'BSED - Major in General Science',
-        spId: sp.id,
-        ctId: createdCTs[2]?.id,
       },
       {
         studentId: '2021-10988',
         username: 'pvelasco',
         name: 'Patricia Nicole Velasco',
-        program: 'BSED - Major in English',
-        spId: sp.id,
+        program: 'Bachelor of Secondary Education',
+        spId: seededSPs[1]?.id,
+        ctId: createdCTs[0]?.id,
+      },
+      // BEED
+      {
+        studentId: '2021-20114',
+        username: 'mlramos',
+        name: 'Maria Lourdes Ramos',
+        program: 'Bachelor of Elementary Education',
+        spId: seededSPs[2]?.id,
+        ctId: createdCTs[2]?.id,
+      },
+      {
+        studentId: '2021-20155',
+        username: 'cpdiaz',
+        name: 'Christian Paul Diaz',
+        program: 'Bachelor of Elementary Education',
+        spId: seededSPs[2]?.id,
+        ctId: createdCTs[2]?.id,
+      },
+      // BTLEd
+      {
+        studentId: '2021-10678',
+        username: 'abautista',
+        name: 'Alvin Mark Bautista',
+        program: 'Bachelor of Technology and Livelihood Education',
+        spId: seededSPs[3]?.id,
+        ctId: createdCTs[3]?.id,
+      },
+      {
+        studentId: '2021-30882',
+        username: 'mareyes',
+        name: 'Mark Anthony Reyes',
+        program: 'Bachelor of Technology and Livelihood Education',
+        spId: seededSPs[3]?.id,
         ctId: createdCTs[3]?.id,
       },
     ];
@@ -152,7 +236,7 @@ export async function GET() {
     for (const st of students) {
       const s = await prisma.student.upsert({
         where: { studentId: st.studentId },
-        update: { ctId: st.ctId, spId: st.spId, username: st.username },
+        update: { ctId: st.ctId, spId: st.spId, username: st.username, program: st.program },
         create: {
           ...st,
           password: 'password123',
@@ -163,15 +247,26 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      message: 'CBSUA Database initialized & seeded successfully on Vercel!',
+      message: 'CBSUA Database initialized & seeded successfully with Dean, Multiple SPs per Program, and Student Interns!',
       data: {
-        supervisingProfessor: sp.name,
+        dean: {
+          name: dean.name,
+          email: dean.email,
+          title: dean.title,
+        },
+        supervisingProfessorsCount: seededSPs.length,
+        supervisingProfessors: seededSPs.map((p) => ({
+          name: p.name,
+          email: p.email,
+          program: p.program,
+        })),
         cooperatingTeachersCount: createdCTs.length,
         studentsCount: seededStudents.length,
-        students: seededStudents.map((s) => ({
-          studentId: s.studentId,
-          name: s.name,
-        })),
+        programsCovered: [
+          'Bachelor of Secondary Education',
+          'Bachelor of Elementary Education',
+          'Bachelor of Technology and Livelihood Education',
+        ],
       },
     });
   } catch (error: unknown) {

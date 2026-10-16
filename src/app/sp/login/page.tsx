@@ -125,6 +125,12 @@ export default function SupervisingProfessorLogin() {
 
           <div className="mt-6 pt-6 border-t border-gray-100 flex flex-col gap-2.5 text-center text-xs text-gray-500">
             <Link
+              href="/dean/login"
+              className="font-bold text-amber-900 hover:text-amber-950 flex items-center justify-center gap-1.5 bg-amber-50 hover:bg-amber-100 py-1.5 rounded-lg border border-amber-200 transition"
+            >
+              🎓 Switch to Dean of College of Education Portal
+            </Link>
+            <Link
               href="/login"
               className="font-medium text-gray-600 hover:text-cbsua-green flex items-center justify-center gap-1.5"
             >

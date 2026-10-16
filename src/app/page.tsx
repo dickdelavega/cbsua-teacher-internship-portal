@@ -43,10 +43,17 @@ export default function Home() {
           <Link href="#" className="hover:text-cbsua-green">Evaluation Guidelines</Link>
           <Link href="#" className="hover:text-cbsua-green">FAQs</Link>
           <Link href="#" className="hover:text-cbsua-green">Help & Support</Link>
-          <Link href="/login" className="ml-4 bg-cbsua-green text-white px-5 py-2.5 rounded-md hover:bg-green-800 transition-colors flex items-center gap-2">
-            Login Portal
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-          </Link>
+          <div className="ml-4 flex items-center gap-2">
+            <Link href="/dean/login" className="text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-3 py-2 rounded-md transition shadow-2xs">
+              Dean Portal
+            </Link>
+            <Link href="/sp/login" className="text-xs font-semibold text-cbsua-green hover:underline px-2 py-2">
+              SP Portal
+            </Link>
+            <Link href="/login" className="bg-cbsua-green text-white text-xs font-bold px-4 py-2 rounded-md hover:bg-green-800 transition-colors flex items-center gap-1.5 shadow-2xs">
+              Student Login
+            </Link>
+          </div>
         </nav>
       </header>
 
@@ -68,12 +75,15 @@ export default function Home() {
             The official web-based <strong className="text-white">Student Teacher Evaluation System (STES)</strong> of CBSUA — fostering academic quality, transparency, and faculty development across all campuses.
           </p>
 
-          <div className="flex flex-wrap gap-4 mb-16">
-            <Link href="/login" className="bg-cbsua-yellow text-green-900 font-bold px-8 py-3.5 rounded-md hover:bg-yellow-400 transition-colors flex items-center gap-2 shadow-[0_0_20px_rgba(255,193,7,0.3)]">
+          <div className="flex flex-wrap gap-3 mb-16">
+            <Link href="/login" className="bg-cbsua-yellow text-green-900 font-bold px-6 py-3 rounded-md hover:bg-yellow-400 transition-colors flex items-center gap-2 shadow-[0_0_20px_rgba(255,193,7,0.3)] text-sm">
               Evaluate Now (Student)
             </Link>
-            <Link href="/sp/login" className="bg-white/10 text-white font-bold px-8 py-3.5 rounded-md hover:bg-white/20 transition-colors flex items-center gap-2 border border-white/20">
+            <Link href="/sp/login" className="bg-white/10 text-white font-bold px-5 py-3 rounded-md hover:bg-white/20 transition-colors flex items-center gap-2 border border-white/20 text-sm">
               Supervising Professor Portal →
+            </Link>
+            <Link href="/dean/login" className="bg-emerald-950/80 text-yellow-300 font-bold px-5 py-3 rounded-md hover:bg-emerald-900 transition-colors flex items-center gap-2 border border-yellow-400/40 text-sm shadow-md">
+              Dean of Education Portal 🎓
             </Link>
           </div>
 

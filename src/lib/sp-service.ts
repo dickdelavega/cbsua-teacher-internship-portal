@@ -42,6 +42,7 @@ export interface ProfessorProfile {
   name: string;
   email: string;
   department: string;
+  program?: string | null;
 }
 
 // In-memory store cache on globalThis to prevent any file system watching triggers
@@ -58,12 +59,45 @@ async function withTimeout<T>(promise: Promise<T>, ms = 3000): Promise<T> {
 }
 
 const defaultData = {
+  dean: {
+    id: 'dean-01',
+    name: 'Dr. Raquel M. Reapor, Ed.D.',
+    email: 'dean.education@cbsua.edu.ph',
+    password: 'password123',
+    title: 'Dean, College of Education',
+  },
   professors: [
     {
       id: 'sp-cbsua-01',
       name: 'Dr. Maria Elena Santos',
       email: 'mesantos@cbsua.edu.ph',
       department: 'College of Education - Secondary Teaching',
+      program: 'Bachelor of Secondary Education',
+      password: 'password123',
+    },
+    {
+      id: 'sp-cbsua-02',
+      name: 'Prof. Roberto C. Mendoza, MAEd',
+      email: 'rmendoza@cbsua.edu.ph',
+      department: 'College of Education - Secondary Teaching',
+      program: 'Bachelor of Secondary Education',
+      password: 'password123',
+    },
+    {
+      id: 'sp-cbsua-03',
+      name: 'Dr. Clarissa T. Ocampo',
+      email: 'cocampo@cbsua.edu.ph',
+      department: 'College of Education - Elementary Teaching',
+      program: 'Bachelor of Elementary Education',
+      password: 'password123',
+    },
+    {
+      id: 'sp-cbsua-04',
+      name: 'Engr. Danilo V. Bautista, Ed.D.',
+      email: 'dbautista@cbsua.edu.ph',
+      department: 'College of Education - Tech & Livelihood',
+      program: 'Bachelor of Technology and Livelihood Education',
+      password: 'password123',
     },
   ],
   cooperatingTeachers: [
@@ -102,7 +136,7 @@ const defaultData = {
       studentId: '2021-10492',
       username: 'jdelacruz',
       name: 'Juan Dela Cruz',
-      program: 'BSED - Major in English',
+      program: 'Bachelor of Secondary Education',
       password: 'password123',
       spId: 'sp-cbsua-01',
       ctId: 'ct-01',
@@ -126,7 +160,7 @@ const defaultData = {
       studentId: '2021-10511',
       username: 'kmsalazar',
       name: 'Kristine Mae Salazar',
-      program: 'BSED - Major in Mathematics',
+      program: 'Bachelor of Secondary Education',
       password: 'password123',
       spId: 'sp-cbsua-01',
       ctId: 'ct-02',
@@ -137,10 +171,10 @@ const defaultData = {
       studentId: '2021-10678',
       username: 'ambautista',
       name: 'Alvin Mark Bautista',
-      program: 'BSED - Major in General Science',
+      program: 'Bachelor of Technology and Livelihood Education',
       password: 'password123',
-      spId: 'sp-cbsua-01',
-      ctId: 'ct-03',
+      spId: 'sp-cbsua-04',
+      ctId: 'ct-04',
       createdAt: new Date().toISOString(),
     },
     {
@@ -148,31 +182,64 @@ const defaultData = {
       studentId: '2021-10988',
       username: 'pvelasco',
       name: 'Patricia Nicole Velasco',
-      program: 'BSED - Major in English',
+      program: 'Bachelor of Secondary Education',
       password: 'password123',
-      spId: 'sp-cbsua-01',
-      ctId: null,
+      spId: 'sp-cbsua-02',
+      ctId: 'ct-01',
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: 'stud-05',
+      studentId: '2021-20114',
+      username: 'mlramos',
+      name: 'Maria Lourdes Ramos',
+      program: 'Bachelor of Elementary Education',
+      password: 'password123',
+      spId: 'sp-cbsua-03',
+      ctId: 'ct-03',
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: 'stud-06',
+      studentId: '2021-30882',
+      username: 'mareyes',
+      name: 'Mark Anthony Reyes',
+      program: 'Bachelor of Technology and Livelihood Education',
+      password: 'password123',
+      spId: 'sp-cbsua-04',
+      ctId: 'ct-04',
       createdAt: new Date().toISOString(),
     },
   ],
 };
 
-function getFallbackStore() {
+export function getFallbackStore() {
   if (!globalThis.__spStore) {
     globalThis.__spStore = JSON.parse(JSON.stringify(defaultData));
   }
   return globalThis.__spStore;
 }
 
-export async function getSupervisingProfessor() {
+export async function getSupervisingProfessor(identifier?: string) {
   try {
-    const prof = await withTimeout(prisma.supervisingProfessor.findFirst(), 2500);
+    const prof = identifier
+      ? await withTimeout(
+          prisma.supervisingProfessor.findFirst({
+            where: {
+              OR: [{ id: identifier }, { email: identifier }],
+            },
+          }),
+          2500
+        )
+      : await withTimeout(prisma.supervisingProfessor.findFirst(), 2500);
+
     if (prof) {
       return {
         id: prof.id,
         name: prof.name,
         email: prof.email,
         department: 'College of Education',
+        program: prof.program || 'Bachelor of Secondary Education',
       };
     }
   } catch (err) {
@@ -180,6 +247,10 @@ export async function getSupervisingProfessor() {
   }
 
   const fb = getFallbackStore();
+  if (identifier) {
+    const found = fb.professors.find((p: any) => p.id === identifier || p.email === identifier);
+    if (found) return found;
+  }
   return fb.professors[0];
 }
 
