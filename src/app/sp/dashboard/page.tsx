@@ -634,24 +634,6 @@ export default function SupervisingProfessorDashboard() {
                   <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
                   <span>Refresh Roster</span>
                 </button>
-
-                <button
-                  onClick={async () => {
-                    try {
-                      setIsLoading(true);
-                      await fetch("/api/seed");
-                    } catch (e) {
-                      console.warn(e);
-                    } finally {
-                      await loadData();
-                    }
-                  }}
-                  className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-medium rounded-lg transition"
-                  title="Initialize sample demo records without overwriting custom data"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Seed Demo Data</span>
-                </button>
               </div>
             </div>
 
@@ -675,22 +657,13 @@ export default function SupervisingProfessorDashboard() {
                         <td colSpan={6} className="py-12 text-center text-slate-400">
                           <Users className="w-8 h-8 mx-auto mb-2 opacity-40" />
                           <div className="font-semibold text-slate-600">No student interns found matching your filter criteria.</div>
-                          <div className="text-xs text-slate-400 mt-1">If your database is empty, load the official demo interns to get started.</div>
+                          <div className="text-xs text-slate-400 mt-1">Enroll new interns using the button below to get started.</div>
                           <button
-                            onClick={async () => {
-                              try {
-                                setIsLoading(true);
-                                await fetch("/api/seed");
-                              } catch (e) {
-                                console.warn(e);
-                              } finally {
-                                await loadData();
-                              }
-                            }}
+                            onClick={() => setActiveTab("enroll")}
                             className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-cbsua-green text-white text-xs font-bold rounded-lg hover:bg-emerald-800 transition shadow-xs"
                           >
-                            <RefreshCw className="w-3.5 h-3.5" />
-                            Load CBSUA Demo Interns
+                            <UserPlus className="w-3.5 h-3.5" />
+                            Enroll New Intern
                           </button>
                         </td>
                       </tr>

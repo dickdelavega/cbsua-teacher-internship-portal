@@ -274,24 +274,6 @@ export default function DeanDashboard() {
               <span>Refresh</span>
             </button>
 
-            <button
-              onClick={async () => {
-                try {
-                  setIsLoading(true);
-                  await fetch("/api/seed");
-                } catch {
-                  // ignore
-                } finally {
-                  await loadData();
-                }
-              }}
-              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-medium rounded-lg transition"
-              title="Seed Initial Demo Records (Non-destructive)"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Seed Demo Data</span>
-            </button>
-
             <Link
               href="/sp/dashboard"
               className="hidden md:flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold rounded-lg hover:bg-emerald-100 transition"
