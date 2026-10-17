@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
+const db = prisma as any;
+
 export async function GET() {
   try {
     // 0. Ensure tables exist if on PostgreSQL (e.g. Supabase, Neon, Vercel Postgres)
     try {
-      await prisma.$executeRawUnsafe(`
+      await db.$executeRawUnsafe(`
         CREATE TABLE IF NOT EXISTS "Dean" (
           "id" TEXT NOT NULL PRIMARY KEY,
           "email" TEXT NOT NULL UNIQUE,
@@ -77,7 +79,7 @@ export async function GET() {
     }
 
     // 1. Dean of the College of Education
-    const dean = await prisma.dean.upsert({
+    const dean = await db.dean.upsert({
       where: { email: 'dean.education@cbsua.edu.ph' },
       update: {
         name: 'Dr. Raquel M. Reapor, Ed.D.',
@@ -121,7 +123,7 @@ export async function GET() {
 
     const seededSPs: any[] = [];
     for (const spItem of spList) {
-      const sProf = await prisma.supervisingProfessor.upsert({
+      const sProf = await db.supervisingProfessor.upsert({
         where: { email: spItem.email },
         update: {
           name: spItem.name,
@@ -158,11 +160,11 @@ export async function GET() {
 
     const createdCTs = [];
     for (const ct of ctData) {
-      const existing = await prisma.cooperatingTeacher.findFirst({
+      const existing = await db.cooperatingTeacher.findFirst({
         where: { name: ct.name, school: ct.school },
       });
       if (!existing) {
-        const created = await prisma.cooperatingTeacher.create({ data: ct });
+        const created = await db.cooperatingTeacher.create({ data: ct });
         createdCTs.push(created);
       } else {
         createdCTs.push(existing);
@@ -234,7 +236,7 @@ export async function GET() {
 
     const seededStudents = [];
     for (const st of students) {
-      const s = await prisma.student.upsert({
+      const s = await db.student.upsert({
         where: { studentId: st.studentId },
         update: { ctId: st.ctId, spId: st.spId, username: st.username, program: st.program },
         create: {
