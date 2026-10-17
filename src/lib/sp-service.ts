@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma';
+import prisma, { ensureDatabaseSchema } from '@/lib/prisma';
 import fs from 'fs';
 import path from 'path';
 
@@ -308,6 +308,8 @@ export async function addCooperatingTeacher(data: {
   school: string;
   gradeLevel: string;
 }): Promise<CooperatingTeacherData> {
+  await ensureDatabaseSchema();
+
   try {
     const created = await withTimeout(
       prisma.cooperatingTeacher.create({
@@ -317,7 +319,7 @@ export async function addCooperatingTeacher(data: {
           gradeLevel: data.gradeLevel,
         },
       }),
-      3000
+      4000
     );
 
     const safeCt: CooperatingTeacherData = {
@@ -333,19 +335,11 @@ export async function addCooperatingTeacher(data: {
     fb.cooperatingTeachers.unshift(safeCt);
 
     return safeCt;
-  } catch (err) {
-    console.warn('[addCooperatingTeacher] Database query error:', err);
-    // Fallback in-memory store
-    const fb = getFallbackStore();
-    const newCt: CooperatingTeacherData = {
-      id: `ct-${Date.now()}`,
-      name: data.name,
-      school: data.school,
-      gradeLevel: data.gradeLevel,
-      createdAt: new Date().toISOString(),
-    };
-    fb.cooperatingTeachers.unshift(newCt);
-    return newCt;
+  } catch (err: any) {
+    console.error('[addCooperatingTeacher] Database create error:', err);
+    throw new Error(
+      `Database error: Could not save cooperating teacher (${err?.message || 'Connection failed'}). Check database configuration.`
+    );
   }
 }
 
@@ -442,6 +436,8 @@ export async function registerSupervisingProfessorAccount(data: {
   const cleanPass = data.password?.trim() || 'password123';
   const cleanProgram = data.program?.trim() || 'Bachelor of Secondary Education';
 
+  await ensureDatabaseSchema();
+
   try {
     const created = await withTimeout(
       prisma.supervisingProfessor.create({
@@ -452,7 +448,7 @@ export async function registerSupervisingProfessorAccount(data: {
           program: cleanProgram,
         },
       }),
-      3000
+      4000
     );
 
     const safeProf = {
@@ -481,29 +477,10 @@ export async function registerSupervisingProfessorAccount(data: {
       throw new Error(`Professor account with email ${cleanEmail} already exists.`);
     }
 
-    const fb = getFallbackStore();
-    const existing = fb.professors.find((p: any) => p.email.toLowerCase() === cleanEmail);
-    if (existing) {
-      throw new Error(`Professor account with email ${cleanEmail} already exists.`);
-    }
-
-    const newProf = {
-      id: `sp-cbsua-${Date.now()}`,
-      name: cleanName,
-      email: cleanEmail,
-      password: cleanPass,
-      program: cleanProgram,
-      department: 'College of Education',
-      createdAt: new Date().toISOString(),
-    };
-    fb.professors.push(newProf);
-    return {
-      id: newProf.id,
-      name: newProf.name,
-      email: newProf.email,
-      department: newProf.department,
-      program: newProf.program,
-    };
+    console.error('[registerSupervisingProfessorAccount] Database create error:', err);
+    throw new Error(
+      `Database error: Could not register professor (${err?.message || 'Connection failed'}). Check database configuration.`
+    );
   }
 }
 
@@ -620,6 +597,8 @@ export async function enrollStudent(data: {
   const cleanUsername = (data.username && data.username.trim()) || cleanStudentId;
   const cleanPassword = (data.temporaryPassword && data.temporaryPassword.trim()) || 'password123';
 
+  await ensureDatabaseSchema();
+
   // 1. Resolve Supervising Professor for real DB foreign key
   const sp = await getSupervisingProfessor(data.spId || undefined);
 
@@ -722,34 +701,9 @@ export async function enrollStudent(data: {
       throw new Error(`Student with ID ${cleanStudentId} or username ${cleanUsername} is already enrolled.`);
     }
 
-    // Fallback store
-    const fb = getFallbackStore();
-    const existingIdx = fb.students.findIndex(
-      (s: any) => s.studentId === cleanStudentId || (s.username && s.username === cleanUsername)
+    throw new Error(
+      `Database error: Could not enroll student (${err?.message || 'Connection failed'}). Check database configuration.`
     );
-    if (existingIdx >= 0) {
-      throw new Error(`Student with ID ${cleanStudentId} or username ${cleanUsername} is already enrolled.`);
-    }
-
-    const newStudent: any = {
-      id: `stud-${Date.now()}`,
-      studentId: cleanStudentId,
-      username: cleanUsername,
-      name: data.name.trim(),
-      program: data.program.trim(),
-      password: cleanPassword,
-      spId: sp ? sp.id : data.spId,
-      ctId: validCtId || data.ctId || null,
-      createdAt: new Date().toISOString(),
-    };
-    fb.students.unshift(newStudent);
-
-    const ct = fb.cooperatingTeachers.find((c: any) => c.id === newStudent.ctId) || null;
-    const { password: _p, ...safe } = newStudent;
-    return {
-      ...safe,
-      ct,
-    };
   }
 }
 

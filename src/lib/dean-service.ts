@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma';
+import prisma, { ensureDatabaseSchema } from '@/lib/prisma';
 import { getFallbackStore } from '@/lib/sp-service';
 
 export const EDUCATION_PROGRAMS = [
@@ -130,6 +130,7 @@ export async function getDeanProfile(): Promise<DeanProfile> {
 }
 
 export async function getDeanSupervisingProfessors(): Promise<SupervisingProfessorAssignment[]> {
+  await ensureDatabaseSchema();
   try {
     const professors = await withTimeout(
       prisma.supervisingProfessor.findMany({
@@ -142,7 +143,7 @@ export async function getDeanSupervisingProfessors(): Promise<SupervisingProfess
         },
         orderBy: { createdAt: 'desc' },
       }),
-      3000
+      3500
     );
 
     if (professors) {
@@ -164,6 +165,24 @@ export async function getDeanSupervisingProfessors(): Promise<SupervisingProfess
     }
   } catch (err) {
     console.warn('[getDeanSupervisingProfessors] Database query error:', err);
+    try {
+      const simpleProfs = await prisma.supervisingProfessor.findMany({
+        orderBy: { createdAt: 'desc' },
+      });
+      if (simpleProfs && simpleProfs.length > 0) {
+        return simpleProfs.map((p) => ({
+          id: p.id,
+          name: p.name,
+          email: p.email,
+          program: p.program || 'Bachelor of Secondary Education',
+          studentsCount: 0,
+          evaluatedStudentsCount: 0,
+          createdAt: p.createdAt ? new Date(p.createdAt).toISOString() : new Date().toISOString(),
+        }));
+      }
+    } catch (simpleErr) {
+      console.warn('[getDeanSupervisingProfessors] Simple query error:', simpleErr);
+    }
   }
 
   const fb = getFallbackStore();
@@ -204,6 +223,8 @@ export async function assignSupervisingProfessorProgram(
   };
   const targetEmail = cleanSpId ? (legacyEmailMap[cleanSpId] || (cleanSpId.includes('@') ? cleanSpId : null)) : null;
 
+  await ensureDatabaseSchema();
+
   try {
     const prof = await prisma.supervisingProfessor.findFirst({
       where: {
@@ -221,7 +242,7 @@ export async function assignSupervisingProfessorProgram(
           where: { id: prof.id },
           data: { program: newProgram },
         }),
-        3000
+        4000
       );
 
       // Keep fallback in sync
@@ -246,9 +267,12 @@ export async function assignSupervisingProfessorProgram(
     }
   } catch (err: any) {
     console.error('[assignSupervisingProfessorProgram] Database update failed:', err);
+    throw new Error(
+      `Database error: Could not update program for supervising professor (${err?.message || 'Connection failed'}).`
+    );
   }
 
-  // Fallback store update
+  // Fallback store update if not found in DB
   const fb = getFallbackStore();
   const fbProf = fb.professors.find(
     (p: any) =>
@@ -291,6 +315,8 @@ export async function createSupervisingProfessorByDean(data: {
     );
   }
 
+  await ensureDatabaseSchema();
+
   try {
     const created = await withTimeout(
       prisma.supervisingProfessor.create({
@@ -301,7 +327,7 @@ export async function createSupervisingProfessorByDean(data: {
           program: cleanProgram,
         },
       }),
-      3500
+      4000
     );
 
     // Keep fallback in sync
@@ -342,34 +368,9 @@ export async function createSupervisingProfessorByDean(data: {
 
     console.error('[createSupervisingProfessorByDean] Database create failed:', err);
 
-    // Fallback store
-    const fb = getFallbackStore();
-    const existing = fb.professors.find((p: any) => p.email.toLowerCase() === cleanEmail);
-    if (existing) {
-      throw new Error(`A Supervising Professor with email ${cleanEmail} already exists.`);
-    }
-
-    const newProf = {
-      id: `sp-cbsua-${Date.now()}`,
-      name: cleanName,
-      email: cleanEmail,
-      password: cleanPass,
-      program: cleanProgram,
-      department: `College of Education - ${cleanProgram}`,
-      createdAt: new Date().toISOString(),
-    };
-
-    fb.professors.push(newProf);
-
-    return {
-      id: newProf.id,
-      name: newProf.name,
-      email: newProf.email,
-      program: newProf.program,
-      studentsCount: 0,
-      evaluatedStudentsCount: 0,
-      createdAt: newProf.createdAt,
-    };
+    throw new Error(
+      `Database error: Could not save supervising professor (${err?.message || 'Connection failed'}). Check database configuration.`
+    );
   }
 }
 

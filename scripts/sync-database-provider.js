@@ -21,4 +21,15 @@ if (databaseUrl && fs.existsSync(schemaPath)) {
     fs.writeFileSync(schemaPath, newSchema, 'utf-8');
     console.log(`[sync-database-provider] Updated prisma provider to "${targetProvider}" based on DATABASE_URL.`);
   }
+
+  if (isPostgres && process.env.VERCEL) {
+    try {
+      console.log('[sync-database-provider] Synchronizing PostgreSQL schema on Vercel build...');
+      const cp = require('child_process');
+      cp.execSync('npx prisma db push --skip-generate --accept-data-loss', { stdio: 'inherit', timeout: 30000 });
+      console.log('[sync-database-provider] PostgreSQL schema synchronized successfully.');
+    } catch (pushErr) {
+      console.warn('[sync-database-provider] Note: Prisma db push on build skipped (runtime auto-DDL will handle schema):', pushErr.message);
+    }
+  }
 }
