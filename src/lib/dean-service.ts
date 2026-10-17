@@ -145,7 +145,7 @@ export async function getDeanSupervisingProfessors(): Promise<SupervisingProfess
       3000
     );
 
-    if (professors && professors.length > 0) {
+    if (professors) {
       return professors.map((p) => {
         const evaluatedCount = p.students.filter(
           (st) => st.evaluationsCT && st.evaluationsCT.length > 0
@@ -163,7 +163,7 @@ export async function getDeanSupervisingProfessors(): Promise<SupervisingProfess
       });
     }
   } catch (err) {
-    // fallback
+    console.warn('[getDeanSupervisingProfessors] Database query error:', err);
   }
 
   const fb = getFallbackStore();
@@ -195,46 +195,83 @@ export async function assignSupervisingProfessorProgram(
     );
   }
 
+  const cleanSpId = spId?.trim();
+  const legacyEmailMap: Record<string, string> = {
+    'sp-cbsua-01': 'mesantos@cbsua.edu.ph',
+    'sp-cbsua-02': 'rmendoza@cbsua.edu.ph',
+    'sp-cbsua-03': 'cocampo@cbsua.edu.ph',
+    'sp-cbsua-04': 'dbautista@cbsua.edu.ph',
+  };
+  const targetEmail = cleanSpId ? (legacyEmailMap[cleanSpId] || (cleanSpId.includes('@') ? cleanSpId : null)) : null;
+
   try {
-    const updated = await withTimeout(
-      prisma.supervisingProfessor.update({
-        where: { id: spId },
-        data: { program: newProgram },
-      }),
-      3000
-    );
-
-    return {
-      success: true,
-      message: `Supervising Professor ${updated.name} successfully assigned to ${newProgram}.`,
-      professor: {
-        id: updated.id,
-        name: updated.name,
-        email: updated.email,
-        program: updated.program,
+    const prof = await prisma.supervisingProfessor.findFirst({
+      where: {
+        OR: [
+          { id: cleanSpId },
+          { email: cleanSpId.toLowerCase() },
+          ...(targetEmail ? [{ email: targetEmail.toLowerCase() }] : []),
+        ],
       },
-    };
-  } catch (err: any) {
-    // Fallback store update
-    const fb = getFallbackStore();
-    const prof = fb.professors.find((p: any) => p.id === spId || p.email === spId);
+    });
 
-    if (!prof) {
-      throw new Error('Supervising Professor not found.');
+    if (prof) {
+      const updated = await withTimeout(
+        prisma.supervisingProfessor.update({
+          where: { id: prof.id },
+          data: { program: newProgram },
+        }),
+        3000
+      );
+
+      // Keep fallback in sync
+      const fb = getFallbackStore();
+      const fbProf = fb.professors.find(
+        (p: any) => p.id === prof.id || p.email.toLowerCase() === prof.email.toLowerCase()
+      );
+      if (fbProf) {
+        fbProf.program = newProgram;
+      }
+
+      return {
+        success: true,
+        message: `Supervising Professor ${updated.name} successfully assigned to ${newProgram}.`,
+        professor: {
+          id: updated.id,
+          name: updated.name,
+          email: updated.email,
+          program: updated.program,
+        },
+      };
     }
-
-    prof.program = newProgram;
-    return {
-      success: true,
-      message: `Supervising Professor ${prof.name} successfully assigned to ${newProgram}.`,
-      professor: {
-        id: prof.id,
-        name: prof.name,
-        email: prof.email,
-        program: prof.program,
-      },
-    };
+  } catch (err: any) {
+    console.error('[assignSupervisingProfessorProgram] Database update failed:', err);
   }
+
+  // Fallback store update
+  const fb = getFallbackStore();
+  const fbProf = fb.professors.find(
+    (p: any) =>
+      p.id === cleanSpId ||
+      p.email.toLowerCase() === cleanSpId.toLowerCase() ||
+      (targetEmail && p.email.toLowerCase() === targetEmail.toLowerCase())
+  );
+
+  if (!fbProf) {
+    throw new Error('Supervising Professor not found.');
+  }
+
+  fbProf.program = newProgram;
+  return {
+    success: true,
+    message: `Supervising Professor ${fbProf.name} successfully assigned to ${newProgram}.`,
+    professor: {
+      id: fbProf.id,
+      name: fbProf.name,
+      email: fbProf.email,
+      program: fbProf.program,
+    },
+  };
 }
 
 export async function createSupervisingProfessorByDean(data: {
@@ -267,6 +304,24 @@ export async function createSupervisingProfessorByDean(data: {
       3500
     );
 
+    // Keep fallback in sync
+    const fb = getFallbackStore();
+    const existingIdx = fb.professors.findIndex((p: any) => p.email.toLowerCase() === cleanEmail);
+    const safeProf = {
+      id: created.id,
+      name: created.name,
+      email: created.email,
+      password: cleanPass,
+      program: created.program || cleanProgram,
+      department: `College of Education - ${cleanProgram}`,
+      createdAt: created.createdAt ? new Date(created.createdAt).toISOString() : new Date().toISOString(),
+    };
+    if (existingIdx >= 0) {
+      fb.professors[existingIdx] = safeProf;
+    } else {
+      fb.professors.unshift(safeProf);
+    }
+
     return {
       id: created.id,
       name: created.name,
@@ -277,6 +332,16 @@ export async function createSupervisingProfessorByDean(data: {
       createdAt: created.createdAt ? new Date(created.createdAt).toISOString() : new Date().toISOString(),
     };
   } catch (err: any) {
+    if (
+      err?.code === 'P2002' ||
+      err?.message?.includes('Unique constraint') ||
+      err?.message?.includes('Duplicate entry')
+    ) {
+      throw new Error(`A Supervising Professor with email ${cleanEmail} already exists.`);
+    }
+
+    console.error('[createSupervisingProfessorByDean] Database create failed:', err);
+
     // Fallback store
     const fb = getFallbackStore();
     const existing = fb.professors.find((p: any) => p.email.toLowerCase() === cleanEmail);

@@ -4,7 +4,8 @@ import { verifyStudentLogin } from '@/lib/sp-service';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { identifier, password } = body;
+    const { password } = body;
+    const identifier = body.identifier || body.studentId || body.username;
 
     if (!identifier || !password) {
       return NextResponse.json(

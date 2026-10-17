@@ -222,17 +222,34 @@ export function getFallbackStore() {
 
 export async function getSupervisingProfessor(identifier?: string) {
   const cleanId = identifier?.trim();
+  const legacyEmailMap: Record<string, string> = {
+    'sp-cbsua-01': 'mesantos@cbsua.edu.ph',
+    'sp-cbsua-02': 'rmendoza@cbsua.edu.ph',
+    'sp-cbsua-03': 'cocampo@cbsua.edu.ph',
+    'sp-cbsua-04': 'dbautista@cbsua.edu.ph',
+  };
+  const targetEmail = cleanId ? (legacyEmailMap[cleanId] || (cleanId.includes('@') ? cleanId : null)) : null;
+
   try {
-    const prof = cleanId
-      ? await withTimeout(
-          prisma.supervisingProfessor.findFirst({
-            where: {
-              OR: [{ id: cleanId }, { email: cleanId.toLowerCase() }],
-            },
-          }),
-          2500
-        )
-      : await withTimeout(prisma.supervisingProfessor.findFirst(), 2500);
+    let prof = null;
+    if (cleanId) {
+      prof = await withTimeout(
+        prisma.supervisingProfessor.findFirst({
+          where: {
+            OR: [
+              { id: cleanId },
+              { email: cleanId.toLowerCase() },
+              ...(targetEmail ? [{ email: targetEmail.toLowerCase() }] : []),
+            ],
+          },
+        }),
+        2500
+      );
+    }
+
+    if (!prof) {
+      prof = await withTimeout(prisma.supervisingProfessor.findFirst(), 2500);
+    }
 
     if (prof) {
       return {
@@ -244,13 +261,16 @@ export async function getSupervisingProfessor(identifier?: string) {
       };
     }
   } catch (err) {
-    // DB not available or timeout, fallback
+    console.warn('[getSupervisingProfessor] Database query error:', err);
   }
 
   const fb = getFallbackStore();
   if (cleanId) {
     const found = fb.professors.find(
-      (p: any) => p.id === cleanId || p.email.toLowerCase() === cleanId.toLowerCase()
+      (p: any) =>
+        p.id === cleanId ||
+        p.email.toLowerCase() === cleanId.toLowerCase() ||
+        (targetEmail && p.email.toLowerCase() === targetEmail.toLowerCase())
     );
     if (found) return found;
   }
@@ -266,7 +286,7 @@ export async function getCooperatingTeachers(): Promise<CooperatingTeacherData[]
       }),
       2500
     );
-    if (cts && cts.length > 0) {
+    if (cts) {
       return cts.map((ct) => ({
         id: ct.id,
         name: ct.name,
@@ -276,7 +296,7 @@ export async function getCooperatingTeachers(): Promise<CooperatingTeacherData[]
       }));
     }
   } catch (err) {
-    // DB error or timeout fallback
+    console.warn('[getCooperatingTeachers] Database query error:', err);
   }
 
   const fb = getFallbackStore();
@@ -299,14 +319,22 @@ export async function addCooperatingTeacher(data: {
       }),
       3000
     );
-    return {
+
+    const safeCt: CooperatingTeacherData = {
       id: created.id,
       name: created.name,
       school: created.school,
       gradeLevel: created.gradeLevel,
       createdAt: created.createdAt ? new Date(created.createdAt).toISOString() : new Date().toISOString(),
     };
+
+    // Keep fallback in sync
+    const fb = getFallbackStore();
+    fb.cooperatingTeachers.unshift(safeCt);
+
+    return safeCt;
   } catch (err) {
+    console.warn('[addCooperatingTeacher] Database query error:', err);
     // Fallback in-memory store
     const fb = getFallbackStore();
     const newCt: CooperatingTeacherData = {
@@ -426,14 +454,33 @@ export async function registerSupervisingProfessorAccount(data: {
       }),
       3000
     );
-    return {
+
+    const safeProf = {
       id: created.id,
       name: created.name,
       email: created.email,
       department: 'College of Education',
       program: created.program,
     };
+
+    const fb = getFallbackStore();
+    const existingIdx = fb.professors.findIndex((p: any) => p.email.toLowerCase() === cleanEmail);
+    if (existingIdx >= 0) {
+      fb.professors[existingIdx] = { ...safeProf, password: cleanPass, createdAt: created.createdAt.toISOString() };
+    } else {
+      fb.professors.unshift({ ...safeProf, password: cleanPass, createdAt: created.createdAt.toISOString() });
+    }
+
+    return safeProf;
   } catch (err: any) {
+    if (
+      err?.code === 'P2002' ||
+      err?.message?.includes('Unique constraint') ||
+      err?.message?.includes('Duplicate entry')
+    ) {
+      throw new Error(`Professor account with email ${cleanEmail} already exists.`);
+    }
+
     const fb = getFallbackStore();
     const existing = fb.professors.find((p: any) => p.email.toLowerCase() === cleanEmail);
     if (existing) {
@@ -462,13 +509,21 @@ export async function registerSupervisingProfessorAccount(data: {
 
 export async function getEnrolledStudents(spIdentifier?: string): Promise<StudentData[]> {
   const cleanId = spIdentifier?.trim();
+  const legacyEmailMap: Record<string, string> = {
+    'sp-cbsua-01': 'mesantos@cbsua.edu.ph',
+    'sp-cbsua-02': 'rmendoza@cbsua.edu.ph',
+    'sp-cbsua-03': 'cocampo@cbsua.edu.ph',
+    'sp-cbsua-04': 'dbautista@cbsua.edu.ph',
+  };
+  const targetEmail = cleanId ? (legacyEmailMap[cleanId] || (cleanId.includes('@') ? cleanId : null)) : null;
+
   try {
     const whereClause: any = {};
     if (cleanId) {
       whereClause.OR = [
         { spId: cleanId },
         { sp: { id: cleanId } },
-        { sp: { email: cleanId.toLowerCase() } },
+        ...(targetEmail ? [{ sp: { email: targetEmail.toLowerCase() } }] : []),
       ];
     }
 
@@ -486,7 +541,8 @@ export async function getEnrolledStudents(spIdentifier?: string): Promise<Studen
       }),
       2500
     );
-    if (students && students.length > 0) {
+
+    if (students) {
       return students.map((s) => {
         const latestEval = s.evaluationsCT && s.evaluationsCT.length > 0 ? s.evaluationsCT[0] : null;
         return {
@@ -521,18 +577,21 @@ export async function getEnrolledStudents(spIdentifier?: string): Promise<Studen
       });
     }
   } catch (err) {
-    // DB error or timeout fallback
+    console.warn('[getEnrolledStudents] Database query failed, using fallback store:', err);
   }
 
   const fb = getFallbackStore();
   let list = fb.students;
   if (cleanId) {
     const prof = fb.professors.find(
-      (p: any) => p.id === cleanId || p.email.toLowerCase() === cleanId.toLowerCase()
+      (p: any) =>
+        p.id === cleanId ||
+        p.email.toLowerCase() === cleanId.toLowerCase() ||
+        (targetEmail && p.email.toLowerCase() === targetEmail.toLowerCase())
     );
     const targetSpId = prof?.id || cleanId;
     list = fb.students.filter(
-      (s: any) => s.spId === targetSpId || s.spId === cleanId
+      (s: any) => s.spId === targetSpId || s.spId === cleanId || (prof && s.spId === prof.id)
     );
   }
 
@@ -557,11 +616,44 @@ export async function enrollStudent(data: {
   ctId?: string | null;
   spId?: string | null;
 }): Promise<StudentData> {
-  const sp = await getSupervisingProfessor(data.spId || undefined);
   const cleanStudentId = data.studentId.trim();
   const cleanUsername = (data.username && data.username.trim()) || cleanStudentId;
   const cleanPassword = (data.temporaryPassword && data.temporaryPassword.trim()) || 'password123';
-  const assignedSpId = data.spId || sp.id;
+
+  // 1. Resolve Supervising Professor for real DB foreign key
+  const sp = await getSupervisingProfessor(data.spId || undefined);
+
+  // 2. Resolve Cooperating Teacher for real DB foreign key
+  let validCtId: string | null = null;
+  const cleanCtId = data.ctId?.trim();
+  if (cleanCtId) {
+    try {
+      const legacyCtMap: Record<string, string> = {
+        'ct-01': 'Alvarez',
+        'ct-02': 'Ramos',
+        'ct-03': 'Leon',
+        'ct-04': 'Reyes',
+      };
+      const ctNameContains = legacyCtMap[cleanCtId];
+
+      const dbCt = await withTimeout(
+        prisma.cooperatingTeacher.findFirst({
+          where: {
+            OR: [
+              { id: cleanCtId },
+              ...(ctNameContains ? [{ name: { contains: ctNameContains } }] : []),
+            ],
+          },
+        }),
+        2500
+      );
+      if (dbCt) {
+        validCtId = dbCt.id;
+      }
+    } catch (ctErr) {
+      console.warn('[enrollStudent] Error finding CT in DB:', ctErr);
+    }
+  }
 
   try {
     const created = await withTimeout(
@@ -572,13 +664,36 @@ export async function enrollStudent(data: {
           name: data.name.trim(),
           program: data.program.trim(),
           password: cleanPassword,
-          spId: sp.id,
-          ctId: data.ctId || null,
+          spId: sp ? sp.id : null,
+          ctId: validCtId,
         },
         include: { ct: true },
       }),
       3500
     );
+
+    // Keep fallback store in sync
+    const fb = getFallbackStore();
+    const existingIdx = fb.students.findIndex(
+      (s: any) => s.studentId === cleanStudentId || s.username === cleanUsername
+    );
+    const safeStudent = {
+      id: created.id,
+      studentId: created.studentId,
+      username: created.username,
+      name: created.name,
+      program: created.program,
+      spId: created.spId,
+      ctId: created.ctId,
+      password: cleanPassword,
+      createdAt: created.createdAt ? new Date(created.createdAt).toISOString() : new Date().toISOString(),
+    };
+    if (existingIdx >= 0) {
+      fb.students[existingIdx] = safeStudent;
+    } else {
+      fb.students.unshift(safeStudent);
+    }
+
     return {
       id: created.id,
       studentId: created.studentId,
@@ -598,6 +713,15 @@ export async function enrollStudent(data: {
       createdAt: created.createdAt ? new Date(created.createdAt).toISOString() : new Date().toISOString(),
     };
   } catch (err: any) {
+    console.error('[enrollStudent] Database insert failed:', err);
+    if (
+      err?.code === 'P2002' ||
+      err?.message?.includes('Unique constraint') ||
+      err?.message?.includes('Duplicate entry')
+    ) {
+      throw new Error(`Student with ID ${cleanStudentId} or username ${cleanUsername} is already enrolled.`);
+    }
+
     // Fallback store
     const fb = getFallbackStore();
     const existingIdx = fb.students.findIndex(
@@ -614,8 +738,8 @@ export async function enrollStudent(data: {
       name: data.name.trim(),
       program: data.program.trim(),
       password: cleanPassword,
-      spId: sp.id,
-      ctId: data.ctId || null,
+      spId: sp ? sp.id : data.spId,
+      ctId: validCtId || data.ctId || null,
       createdAt: new Date().toISOString(),
     };
     fb.students.unshift(newStudent);
@@ -822,44 +946,96 @@ export async function assignStudentToCooperatingTeacher(
   studentDbId: string,
   ctId: string | null
 ): Promise<StudentData> {
+  const cleanStudentId = studentDbId?.trim();
+  const cleanCtId = ctId?.trim() || null;
+
   try {
-    const updated = await prisma.student.update({
-      where: { id: studentDbId },
-      data: {
-        ctId: ctId || null,
+    // 1. Resolve student by id or studentId or username
+    const dbStudent = await prisma.student.findFirst({
+      where: {
+        OR: [
+          { id: cleanStudentId },
+          { studentId: cleanStudentId },
+          { username: cleanStudentId },
+        ],
       },
-      include: { ct: true },
     });
-    return {
-      id: updated.id,
-      studentId: updated.studentId,
-      name: updated.name,
-      program: updated.program,
-      spId: updated.spId,
-      ctId: updated.ctId,
-      ct: updated.ct
-        ? {
-            id: updated.ct.id,
-            name: updated.ct.name,
-            school: updated.ct.school,
-            gradeLevel: updated.ct.gradeLevel,
-          }
-        : null,
-      createdAt: updated.createdAt.toISOString(),
-    };
-  } catch (err) {
-    const fb = getFallbackStore();
-    const st = fb.students.find((s: any) => s.id === studentDbId || s.studentId === studentDbId);
-    if (!st) {
-      throw new Error('Student not found');
+
+    // 2. Resolve valid ctId for foreign key
+    let validCtId: string | null = null;
+    if (cleanCtId) {
+      const legacyCtMap: Record<string, string> = {
+        'ct-01': 'Alvarez',
+        'ct-02': 'Ramos',
+        'ct-03': 'Leon',
+        'ct-04': 'Reyes',
+      };
+      const ctNameContains = legacyCtMap[cleanCtId];
+
+      const dbCt = await prisma.cooperatingTeacher.findFirst({
+        where: {
+          OR: [
+            { id: cleanCtId },
+            ...(ctNameContains ? [{ name: { contains: ctNameContains } }] : []),
+          ],
+        },
+      });
+      if (dbCt) {
+        validCtId = dbCt.id;
+      }
     }
-    st.ctId = ctId || null;
-    const ct = fb.cooperatingTeachers.find((c: any) => c.id === st.ctId) || null;
-    return {
-      ...st,
-      ct,
-    };
+
+    if (dbStudent) {
+      const updated = await prisma.student.update({
+        where: { id: dbStudent.id },
+        data: {
+          ctId: validCtId,
+        },
+        include: { ct: true },
+      });
+
+      // Keep fallback store in sync
+      const fb = getFallbackStore();
+      const st = fb.students.find((s: any) => s.id === dbStudent.id || s.studentId === dbStudent.studentId);
+      if (st) {
+        st.ctId = validCtId || cleanCtId;
+      }
+
+      return {
+        id: updated.id,
+        studentId: updated.studentId,
+        username: updated.username || updated.studentId,
+        name: updated.name,
+        program: updated.program,
+        spId: updated.spId,
+        ctId: updated.ctId,
+        ct: updated.ct
+          ? {
+              id: updated.ct.id,
+              name: updated.ct.name,
+              school: updated.ct.school,
+              gradeLevel: updated.ct.gradeLevel,
+            }
+          : null,
+        createdAt: updated.createdAt.toISOString(),
+      };
+    }
+  } catch (err) {
+    console.error('[assignStudentToCooperatingTeacher] Database update failed:', err);
   }
+
+  // Fallback store
+  const fb = getFallbackStore();
+  const st = fb.students.find((s: any) => s.id === cleanStudentId || s.studentId === cleanStudentId);
+  if (!st) {
+    throw new Error('Student not found');
+  }
+  st.ctId = cleanCtId;
+  const ct = fb.cooperatingTeachers.find((c: any) => c.id === st.ctId) || null;
+  return {
+    ...st,
+    ct,
+  };
 }
 
 export async function getStudentProfile(studentIdOrDbId?: string) {

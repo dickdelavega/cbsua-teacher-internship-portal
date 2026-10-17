@@ -6,8 +6,9 @@ const db = prisma as any;
 export async function GET() {
   try {
     // 0. Ensure tables exist if on PostgreSQL (e.g. Supabase, Neon, Vercel Postgres)
-    try {
-      await db.$executeRawUnsafe(`
+    if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres')) {
+      try {
+        await db.$executeRawUnsafe(`
         CREATE TABLE IF NOT EXISTS "Dean" (
           "id" TEXT NOT NULL PRIMARY KEY,
           "email" TEXT NOT NULL UNIQUE,
@@ -74,8 +75,9 @@ export async function GET() {
         ALTER TABLE "SupervisingProfessor" ADD COLUMN IF NOT EXISTS "program" TEXT DEFAULT 'Bachelor of Secondary Education';
         CREATE UNIQUE INDEX IF NOT EXISTS "Student_username_key" ON "Student"("username");
       `);
-    } catch (ddlError) {
-      console.warn('Note: Auto DDL skipped or not applicable (e.g., MySQL):', ddlError);
+      } catch (ddlError) {
+        console.warn('Note: Auto DDL skipped or not applicable:', ddlError);
+      }
     }
 
     // 1. Dean of the College of Education
