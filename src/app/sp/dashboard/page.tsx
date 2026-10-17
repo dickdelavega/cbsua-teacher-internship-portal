@@ -628,10 +628,11 @@ export default function SupervisingProfessorDashboard() {
 
                 <button
                   onClick={() => loadData(professor.email, professor.id)}
-                  className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600"
-                  title="Refresh Roster"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-cbsua-green text-white text-xs font-semibold rounded-lg hover:bg-emerald-800 transition shadow-xs"
+                  title="Reload current student roster from database"
                 >
-                  <RefreshCw className="w-4 h-4" />
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
+                  <span>Refresh Roster</span>
                 </button>
 
                 <button
@@ -645,11 +646,11 @@ export default function SupervisingProfessorDashboard() {
                       await loadData();
                     }
                   }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-cbsua-green text-white text-xs font-semibold rounded-lg hover:bg-emerald-800 transition shadow-xs"
-                  title="Initialize Database and Seed Demo Records"
+                  className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-medium rounded-lg transition"
+                  title="Initialize sample demo records without overwriting custom data"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Sync Demo Data</span>
+                  <span>Seed Demo Data</span>
                 </button>
               </div>
             </div>

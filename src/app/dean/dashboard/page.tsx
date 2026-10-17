@@ -266,6 +266,15 @@ export default function DeanDashboard() {
 
           <div className="flex items-center gap-2">
             <button
+              onClick={() => loadData()}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition"
+              title="Refresh Live Data"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
+              <span>Refresh</span>
+            </button>
+
+            <button
               onClick={async () => {
                 try {
                   setIsLoading(true);
@@ -276,11 +285,11 @@ export default function DeanDashboard() {
                   await loadData();
                 }
               }}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition"
-              title="Sync Demo Database across Programs"
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-medium rounded-lg transition"
+              title="Seed Initial Demo Records (Non-destructive)"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
-              <span>Sync Demo Data</span>
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Seed Demo Data</span>
             </button>
 
             <Link

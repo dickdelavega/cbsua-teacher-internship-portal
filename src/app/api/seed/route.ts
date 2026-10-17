@@ -129,7 +129,6 @@ export async function GET() {
         where: { email: spItem.email },
         update: {
           name: spItem.name,
-          program: spItem.program,
         },
         create: spItem,
       });
@@ -240,7 +239,7 @@ export async function GET() {
     for (const st of students) {
       const s = await db.student.upsert({
         where: { studentId: st.studentId },
-        update: { ctId: st.ctId, spId: st.spId, username: st.username, program: st.program },
+        update: {}, // Non-destructive: preserve existing assignments and user edits
         create: {
           ...st,
           password: 'password123',
